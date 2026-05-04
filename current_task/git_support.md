@@ -14,7 +14,7 @@ Operations to cover: status, diff, log, branch list, checkout, commit, push, pul
 Agents import from this module rather than shelling out to git themselves.
 
 ### 2. Repo context
-**Status:** Todo  
+**Status:** Done  
 Define how an agent knows *which repo* to operate on.
 Proposal: pass a `repo_path` at runtime (via Discord message or config), stored in session state on the Scrum Master.
 
