@@ -1,5 +1,6 @@
 import os
 import sys
+import signal
 from pathlib import Path
 
 import discord
@@ -10,6 +11,24 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from agents.scrum_master import ScrumMaster
 
 load_dotenv()
+
+PID_FILE = Path(__file__).parent / "bot.pid"
+
+
+def check_pid_file():
+    if PID_FILE.exists():
+        old_pid = int(PID_FILE.read_text().strip())
+        try:
+            os.kill(old_pid, signal.SIGTERM)
+            print(f"Stopped previous instance (PID {old_pid})")
+        except ProcessLookupError:
+            pass
+    PID_FILE.write_text(str(os.getpid()))
+
+
+def cleanup_pid():
+    if PID_FILE.exists():
+        PID_FILE.unlink()
 
 GIT_BASE_DIR = os.getenv("GIT_BASE_DIR", str(Path.home() / "git"))
 
@@ -70,4 +89,8 @@ async def on_message(message):
 
 
 if __name__ == "__main__":
-    client.run(os.getenv("DISCORD_TOKEN"))
+    check_pid_file()
+    try:
+        client.run(os.getenv("DISCORD_TOKEN"))
+    finally:
+        cleanup_pid()
