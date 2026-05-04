@@ -16,6 +16,8 @@ class BaseAgent:
         agent_config = config.get("agents", {}).get(name, {})
         self.model = model or agent_config.get("model", "claude-sonnet-4-6")
         self.max_tokens = agent_config.get("max_tokens", 4096)
+        self.git_name = agent_config.get("git_name", name)
+        self.git_email = agent_config.get("git_email", f"{name}@ai-agent-hub2")
 
     def _load_config(self) -> dict:
         with open(CONFIG_PATH) as f:

@@ -52,8 +52,14 @@ def add(repo_path: str, files: list) -> str:
     return _run(["add"] + files, repo_path)
 
 
-def commit(repo_path: str, message: str) -> str:
-    return _run(["commit", "-m", message], repo_path)
+def commit(repo_path: str, message: str, author_name: str = None, author_email: str = None) -> str:
+    args = []
+    if author_name:
+        args += ["-c", f"user.name={author_name}"]
+    if author_email:
+        args += ["-c", f"user.email={author_email}"]
+    args += ["commit", "-m", message]
+    return _run(args, repo_path)
 
 
 def checkout(repo_path: str, branch: str, create: bool = False) -> str:
