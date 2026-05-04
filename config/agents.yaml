@@ -1,0 +1,9 @@
+agents:
+  scrum_master:
+    model: claude-sonnet-4-6
+    max_tokens: 4096
+
+  # Add new agents here, e.g.:
+  # code_reviewer:
+  #   model: claude-sonnet-4-6
+  #   max_tokens: 8192
