@@ -6,3 +6,5 @@ __pycache__/
 venv/
 bot/bot.pid
 bot/bot.log
+.claude/
+test_send.py
