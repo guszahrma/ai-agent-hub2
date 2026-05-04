@@ -26,12 +26,12 @@ Each agent commits under its own git identity (name + email), stored in `config/
 `git_tools.commit()` accepts an optional `author` parameter to set identity per commit.
 
 ### 4. Scrum Master delegation
-**Status:** In Progress  
+**Status:** Done  
 Wire up the Scrum Master to detect git-related requests and hand off to GitAgent.
 Example triggers: "what's the status of the repo", "commit my changes", "create a branch for X".
 
 ### 5. Auth & safety
-**Status:** Todo  
+**Status:** Done  
 Decide how to handle credentials for push/pull to remotes (SSH keys vs tokens).
 Add guardrails: no force pushes, confirm before destructive operations.
 

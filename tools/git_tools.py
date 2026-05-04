@@ -2,7 +2,15 @@ import subprocess
 from pathlib import Path
 
 
+PROTECTED_BRANCHES = {"main", "master"}
+
+
 class GitError(Exception):
+    pass
+
+
+class SafetyError(Exception):
+    """Raised when an operation is blocked by a safety guardrail."""
     pass
 
 
@@ -17,7 +25,10 @@ def _run(args: list, repo_path: str) -> str:
         text=True,
     )
     if result.returncode != 0:
-        raise GitError(result.stderr.strip())
+        err = result.stderr.strip()
+        if any(phrase in err.lower() for phrase in ["permission denied", "authentication failed", "could not read"]):
+            raise GitError(f"Auth error — is SSH set up for this remote? ({err})")
+        raise GitError(err)
     return result.stdout.strip()
 
 
@@ -77,7 +88,13 @@ def pull(repo_path: str, remote: str = "origin", branch: str = None) -> str:
     return _run(args, repo_path)
 
 
-def push(repo_path: str, remote: str = "origin", branch: str = None) -> str:
+def push(repo_path: str, remote: str = "origin", branch: str = None, confirmed: bool = False) -> str:
+    target = branch or current_branch(repo_path)
+    if target in PROTECTED_BRANCHES and not confirmed:
+        raise SafetyError(
+            f"Pushing to `{target}` is protected. "
+            "Explicitly confirm by including 'confirmed=True' or asking the user to approve first."
+        )
     args = ["push", remote]
     if branch:
         args.append(branch)
