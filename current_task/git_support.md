@@ -19,14 +19,14 @@ Define how an agent knows *which repo* to operate on.
 Proposal: pass a `repo_path` at runtime (via Discord message or config), stored in session state on the Scrum Master.
 
 ### 3. GitAgent specialist + commit attribution
-**Status:** In Progress  
+**Status:** Done  
 Create `agents/git_agent.py` — a specialist the Scrum Master can delegate git tasks to.
 Responsibilities: interpret natural language git requests, call git tools, report back results.
 Each agent commits under its own git identity (name + email), stored in `config/agents.yaml`.
 `git_tools.commit()` accepts an optional `author` parameter to set identity per commit.
 
 ### 4. Scrum Master delegation
-**Status:** Todo  
+**Status:** In Progress  
 Wire up the Scrum Master to detect git-related requests and hand off to GitAgent.
 Example triggers: "what's the status of the repo", "commit my changes", "create a branch for X".
 
