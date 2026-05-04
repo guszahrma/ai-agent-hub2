@@ -18,10 +18,12 @@ Agents import from this module rather than shelling out to git themselves.
 Define how an agent knows *which repo* to operate on.
 Proposal: pass a `repo_path` at runtime (via Discord message or config), stored in session state on the Scrum Master.
 
-### 3. GitAgent specialist
-**Status:** Todo  
+### 3. GitAgent specialist + commit attribution
+**Status:** In Progress  
 Create `agents/git_agent.py` — a specialist the Scrum Master can delegate git tasks to.
 Responsibilities: interpret natural language git requests, call git tools, report back results.
+Each agent commits under its own git identity (name + email), stored in `config/agents.yaml`.
+`git_tools.commit()` accepts an optional `author` parameter to set identity per commit.
 
 ### 4. Scrum Master delegation
 **Status:** Todo  
@@ -37,6 +39,10 @@ Add guardrails: no force pushes, confirm before destructive operations.
 **Status:** Todo  
 Allow the Scrum Master to manage multiple repos across different projects.
 Proposal: maintain a named registry of repos in `config/repos.yaml`.
+
+### 7. GitHub PR attribution
+**Status:** Todo  
+When agents review or comment on PRs via the GitHub API, each comment is badged with the agent's name (e.g. `**[GitAgent]:**`). Single GitHub bot token, but agent identity is always visible in the comment body. Requires GitHub API integration.
 
 ---
 
