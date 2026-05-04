@@ -38,7 +38,12 @@ class GitAgent(BaseAgent):
             "role": "user",
             "content": f"Repo: {repo_path}\n\nCurrent state:\n{context}\n\nRequest: {request}"
         }]
-        return self.run(messages)
+        try:
+            return self.run(messages)
+        except git_tools.SafetyError as e:
+            return f"⛔ Blocked by safety guardrail: {e}"
+        except git_tools.GitError as e:
+            return f"❌ Git error: {e}"
 
     def _gather_context(self, repo_path: str) -> str:
         try:
