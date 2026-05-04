@@ -1,4 +1,8 @@
 agents:
+  jeeves:
+    git_name: Jeeves
+    git_email: jeeves@ai-agent-hub2
+
   scrum_master:
     model: claude-sonnet-4-6
     max_tokens: 4096
