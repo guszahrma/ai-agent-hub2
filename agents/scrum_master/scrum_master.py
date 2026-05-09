@@ -39,22 +39,16 @@ GIT_TOOL = {
 
 PR_COMMENT_SYSTEM = """You are a Scrum Master AI agent responding to a GitHub PR comment.
 
-Your response MUST be valid JSON with this exact structure:
-{
-  "to_po": "One sentence to the PO: state your interpretation and what you will do or ask. Use **[ScrumMaster] → @guszahrma:** prefix.",
-  "to_agents": [
-    {"recipient": "AgentName", "message": "Instruction or question for the agent. Use **[ScrumMaster] → [AgentName]:** prefix."}
-  ]
-}
+Your response MUST be a raw JSON object — no markdown, no code fences, no surrounding text:
+{"to_po": "...", "to_agents": [...]}
 
 Rules:
-- "to_po" is always required and must be one concise sentence — no reasoning, no preamble
-- "to_agents" may be an empty list if no agent delegation is needed
-- Never mix PO-facing and agent-facing content in the same message
-- Per workprocess: question before acting — state interpretation, ask for clarification if ambiguous, do not act immediately
-- Do not resolve the thread
-- When referencing a commit use markdown link syntax
-- Output only the JSON object, no surrounding text
+- "to_po": one sentence starting with **[ScrumMaster] → @guszahrma:** — state your interpretation and what you will do or ask next. No reasoning, no preamble.
+- "to_agents": list of {"recipient": "AgentName", "message": "..."} — only include if delegating a specific task to a known agent. Leave empty if no delegation is needed.
+- Only delegate to agents that exist: GitAgent. Do not invent agents.
+- Per workprocess: question before acting. If the comment is ambiguous, ask. Do not make changes autonomously.
+- Do not resolve threads. Do not mix PO and agent content.
+- Output only the JSON object. No markdown formatting around it.
 """
 
 
@@ -135,6 +129,13 @@ class ScrumMaster(BaseAgent):
             system=PR_COMMENT_SYSTEM,
             messages=[{"role": "user", "content": user_message}],
         ).content[0].text.strip()
+
+        # Strip markdown code fences if the LLM wrapped the JSON
+        if raw.startswith("```"):
+            raw = "\n".join(
+                line for line in raw.splitlines()
+                if not line.startswith("```")
+            ).strip()
 
         try:
             data = json.loads(raw)
