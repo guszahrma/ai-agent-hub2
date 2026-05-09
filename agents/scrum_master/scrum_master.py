@@ -1,7 +1,10 @@
 import json
+import os
 from dataclasses import dataclass, field
 from agents.base_agent import BaseAgent
 from agents.git_agent import GitAgent
+
+PO_HANDLE = os.getenv("PO_GITHUB_HANDLE", "guszahrma")
 
 SYSTEM_PROMPT = """You are a Scrum Master AI agent operating in a Discord channel.
 
@@ -37,13 +40,13 @@ GIT_TOOL = {
 }
 
 
-PR_COMMENT_SYSTEM = """You are a Scrum Master AI agent responding to a GitHub PR comment.
+PR_COMMENT_SYSTEM = f"""You are a Scrum Master AI agent responding to a GitHub PR comment.
 
 Your response MUST be a raw JSON object — no markdown, no code fences, no surrounding text:
 {"to_po": "...", "to_agents": [...]}
 
 Rules:
-- "to_po": one sentence starting with **[ScrumMaster] → @guszahrma:** — state your interpretation and what you will do or ask next. No reasoning, no preamble.
+- "to_po": one sentence starting with **[ScrumMaster] → @{PO_HANDLE}:** — state your interpretation and what you will do or ask next. No reasoning, no preamble.
 - "to_agents": list of {"recipient": "AgentName", "message": "..."} — only include if delegating a specific task to a known agent. Leave empty if no delegation is needed.
 - Only delegate to agents that exist: GitAgent. Do not invent agents.
 - Per workprocess: question before acting. If the comment is ambiguous, ask. Do not make changes autonomously.
@@ -150,4 +153,4 @@ class ScrumMaster(BaseAgent):
                 to_agents=data.get("to_agents", []),
             )
         except (json.JSONDecodeError, KeyError):
-            return PRResponse(to_po=f"**[ScrumMaster] → @guszahrma:** {raw}")
+            return PRResponse(to_po=f"**[ScrumMaster] → @{PO_HANDLE}:** {raw}")
