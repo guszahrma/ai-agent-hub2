@@ -2,6 +2,8 @@
 
 A reusable library of AI agents designed to work together. The Scrum Master agent lives in a Discord channel and orchestrates specialist agents on demand.
 
+Git integration is a first-class feature. Each Discord channel maps to a git repository via `config/repos.yaml`. The Scrum Master automatically delegates git-related requests to the GitAgent specialist, which handles status, diffs, logs, and writes (commit, push, checkout) with per-agent commit attribution and safety guardrails on protected branches.
+
 ## Structure
 
 ```
