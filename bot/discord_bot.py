@@ -94,8 +94,13 @@ async def poll_pr_comments():
                         repo_ref=repo_ref,
                         repo_path=info.get("path"),
                     )
-                    pr_monitor.reply(repo_ref, comment, response)
-                    print(f"  → replied on GitHub")
+                    if response.to_po:
+                        pr_monitor.reply(repo_ref, comment, response.to_po)
+                        print(f"  → replied to PO")
+                    for agent_msg in response.to_agents:
+                        body = f"**[ScrumMaster] → [{agent_msg['recipient']}]:** {agent_msg['message']}"
+                        pr_monitor.reply(repo_ref, comment, body)
+                        print(f"  → delegated to {agent_msg['recipient']}")
                 except Exception as e:
                     print(f"  → failed to reply: {e}")
 

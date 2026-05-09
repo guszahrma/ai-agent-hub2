@@ -1,3 +1,5 @@
+import json
+from dataclasses import dataclass, field
 from agents.base_agent import BaseAgent
 from agents.git_agent import GitAgent
 
@@ -33,6 +35,33 @@ GIT_TOOL = {
         "required": ["request"],
     },
 }
+
+
+PR_COMMENT_SYSTEM = """You are a Scrum Master AI agent responding to a GitHub PR comment.
+
+Your response MUST be valid JSON with this exact structure:
+{
+  "to_po": "One sentence to the PO: state your interpretation and what you will do or ask. Use **[ScrumMaster] → @guszahrma:** prefix.",
+  "to_agents": [
+    {"recipient": "AgentName", "message": "Instruction or question for the agent. Use **[ScrumMaster] → [AgentName]:** prefix."}
+  ]
+}
+
+Rules:
+- "to_po" is always required and must be one concise sentence — no reasoning, no preamble
+- "to_agents" may be an empty list if no agent delegation is needed
+- Never mix PO-facing and agent-facing content in the same message
+- Per workprocess: question before acting — state interpretation, ask for clarification if ambiguous, do not act immediately
+- Do not resolve the thread
+- When referencing a commit use markdown link syntax
+- Output only the JSON object, no surrounding text
+"""
+
+
+@dataclass
+class PRResponse:
+    to_po: str
+    to_agents: list[dict] = field(default_factory=list)
 
 
 class ScrumMaster(BaseAgent):
@@ -86,21 +115,32 @@ class ScrumMaster(BaseAgent):
 
         return response.content[0].text
 
-    def handle_pr_comment(self, comment, repo_ref: str, repo_path: str = None) -> str:
-        """React to a new GitHub PR comment per workprocess: question before acting, reply in PR thread."""
+    def handle_pr_comment(self, comment, repo_ref: str, repo_path: str = None) -> PRResponse:
+        """React to a new GitHub PR comment. Returns a structured PRResponse."""
         diff_context = ""
         if comment.diff_hunk:
             diff_context = f"\nCode context (diff hunk):\n```\n{comment.diff_hunk}\n```"
 
         user_message = (
-            f"New GitHub PR comment detected on PR #{comment.pr_number} "
-            f"'#{comment.pr_title}' in {repo_ref}.\n\n"
+            f"New GitHub PR comment on PR #{comment.pr_number} '{comment.pr_title}' in {repo_ref}.\n\n"
             f"Comment by @{comment.author}:\n{comment.body}"
             f"{diff_context}\n\n"
-            f"URL: {comment.url}\n\n"
-            "Per workprocess: assess relevance, flag ambiguity, and ask for clarification "
-            "before taking any action. Do not resolve the thread. Any reply must go in the PR thread. "
-            "State your interpretation of the comment and what — if anything — you plan to do. "
-            f"When referencing a commit, link it as: [sha](https://github.com/{repo_ref}/pull/{comment.pr_number}/commits/sha)"
+            f"Commit link format: [sha](https://github.com/{repo_ref}/pull/{comment.pr_number}/commits/sha)\n\n"
+            "Respond with the required JSON structure."
         )
-        return self.handle_message(user_message, "PRMonitor", repo_ref=repo_ref, repo_path=repo_path)
+
+        raw = self.client.messages.create(
+            model=self.model,
+            max_tokens=512,
+            system=PR_COMMENT_SYSTEM,
+            messages=[{"role": "user", "content": user_message}],
+        ).content[0].text.strip()
+
+        try:
+            data = json.loads(raw)
+            return PRResponse(
+                to_po=data.get("to_po", ""),
+                to_agents=data.get("to_agents", []),
+            )
+        except (json.JSONDecodeError, KeyError):
+            return PRResponse(to_po=f"**[ScrumMaster] → @guszahrma:** {raw}")

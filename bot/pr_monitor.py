@@ -82,7 +82,7 @@ class PRMonitor:
                 continue  # skip closed PRs
             if cid not in seen["review"]:
                 seen["review"].add(cid)
-                if not is_first_poll:
+                if not is_first_poll and not c["body"].startswith("**["):
                     new_comments.append(PRComment(
                         pr_number=pr_num,
                         pr_title=pr_titles[pr_num],
@@ -110,7 +110,7 @@ class PRMonitor:
                 cid = c["id"]
                 if cid not in seen["issue"]:
                     seen["issue"].add(cid)
-                    if not is_first_poll:
+                    if not is_first_poll and not c["body"].startswith("**["):
                         new_comments.append(PRComment(
                             pr_number=pr_num,
                             pr_title=pr_titles[pr_num],
@@ -124,11 +124,16 @@ class PRMonitor:
 
         return new_comments
 
-    def reply(self, repo_ref: str, comment: PRComment, body: str) -> None:
-        """Post a reply to a PR comment on GitHub."""
+    def reply(self, repo_ref: str, comment: PRComment, body: str) -> int:
+        """Post a reply to a PR comment on GitHub. Returns the new comment ID."""
         if comment.comment_type == "review":
-            url = f"{GITHUB_API}/repos/{repo_ref}/pulls/comments/{comment.comment_id}/replies"
+            url = f"{GITHUB_API}/repos/{repo_ref}/pulls/{comment.pr_number}/comments/{comment.comment_id}/replies"
         else:
             url = f"{GITHUB_API}/repos/{repo_ref}/issues/{comment.pr_number}/comments"
         resp = self._session.post(url, json={"body": body})
         resp.raise_for_status()
+        new_id = resp.json()["id"]
+        # Mark our own reply as seen so the next poll doesn't re-process it
+        seen = self._seen_for(repo_ref)
+        seen["review" if comment.comment_type == "review" else "issue"].add(new_id)
+        return new_id

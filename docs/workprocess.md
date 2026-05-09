@@ -44,6 +44,8 @@ Examples:
 
 When addressing the PO, use their GitHub handle (`@guszahrma`) as the recipient. When addressing an agent role, use the role name in brackets. A comment without an explicit recipient is addressed to the whole team.
 
+**One comment per recipient** — never mix PO-facing and agent-facing content in the same comment. If a response requires both a PO update and agent delegation, post them as separate comments.
+
 ### How to apply a fix
 
 The method depends on what is being changed:
