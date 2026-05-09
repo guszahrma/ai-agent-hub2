@@ -70,20 +70,29 @@ class PRMonitor:
         try:
             review_comments = self._get(
                 f"{GITHUB_API}/repos/{repo_ref}/pulls/comments",
-                params={"per_page": 100, "sort": "created", "direction": "desc"},
+                params={"per_page": 100, "sort": "created", "direction": "asc"},
             )
         except requests.HTTPError:
             review_comments = []
+
+        # Track the last comment body per thread root so we can skip comments
+        # where the agent already replied (avoid repeated responses in one thread)
+        last_body_in_thread: dict[int, str] = {}
 
         for c in review_comments:
             cid = c["id"]
             pr_num = c["pull_request_url"].split("/")[-1]
             pr_num = int(pr_num)
+            root_id = c.get("in_reply_to_id") or cid
+            prev_body = last_body_in_thread.get(root_id, "")
+            last_body_in_thread[root_id] = c["body"]
+
             if pr_num not in pr_titles:
                 continue  # skip closed PRs
             if cid not in seen["review"]:
                 seen["review"].add(cid)
-                if not is_first_poll and not c["body"].startswith("**["):
+                agent_already_replied = prev_body.startswith("**[")
+                if not is_first_poll and not c["body"].startswith("**[") and not agent_already_replied:
                     new_comments.append(PRComment(
                         pr_number=pr_num,
                         pr_title=pr_titles[pr_num],
@@ -108,11 +117,14 @@ class PRMonitor:
             except requests.HTTPError:
                 continue
 
+            prev_issue_body = ""
             for c in issue_comments:
                 cid = c["id"]
+                agent_already_replied = prev_issue_body.startswith("**[")
+                prev_issue_body = c["body"]
                 if cid not in seen["issue"]:
                     seen["issue"].add(cid)
-                    if not is_first_poll and not c["body"].startswith("**["):
+                    if not is_first_poll and not c["body"].startswith("**[") and not agent_already_replied:
                         new_comments.append(PRComment(
                             pr_number=pr_num,
                             pr_title=pr_titles[pr_num],
