@@ -47,8 +47,8 @@ Your response MUST be a raw JSON object — no markdown, no code fences, no surr
 
 Rules:
 - "to_po": one sentence starting with **[ScrumMaster] → @{PO_HANDLE}:** — state your interpretation and what you will do or ask next. No reasoning, no preamble.
-- "to_agents": list of {{"recipient": "AgentName", "message": "..."}} — only include if delegating a specific task to a known agent. Leave empty if no delegation is needed.
-- Only delegate to agents that exist: GitAgent. Do not invent agents.
+- "to_agents": list of {{"recipient": "AgentName", "message": "..."}} — only for agents that cannot be called programmatically, such as Jeeves. Leave empty if no such delegation is needed.
+- GitAgent is available as a tool — call it directly when git information is needed. Do not put GitAgent in to_agents.
 - Per workprocess: question before acting. If the comment is ambiguous, ask. Do not make changes autonomously.
 - Do not resolve threads. Do not mix PO and agent content.
 - Output only the JSON object. No markdown formatting around it.
@@ -132,12 +132,39 @@ class ScrumMaster(BaseAgent):
             "Respond with the required JSON structure."
         )
 
-        raw = self.client.messages.create(
+        messages = [{"role": "user", "content": user_message}]
+
+        response = self.client.messages.create(
             model=self.model,
-            max_tokens=512,
+            max_tokens=1024,
             system=PR_COMMENT_SYSTEM,
-            messages=[{"role": "user", "content": user_message}],
-        ).content[0].text.strip()
+            tools=[GIT_TOOL],
+            messages=messages,
+        )
+
+        if response.stop_reason == "tool_use":
+            tool_use = next(b for b in response.content if b.type == "tool_use")
+            request = tool_use.input["request"]
+
+            if repo_path:
+                git_result = self._git_agent.handle(request, repo_path)
+            else:
+                git_result = "No local repo path configured — cannot run git operations."
+
+            messages += [
+                {"role": "assistant", "content": response.content},
+                {"role": "user", "content": [{"type": "tool_result", "tool_use_id": tool_use.id, "content": git_result}]},
+            ]
+
+            response = self.client.messages.create(
+                model=self.model,
+                max_tokens=512,
+                system=PR_COMMENT_SYSTEM,
+                tools=[GIT_TOOL],
+                messages=messages,
+            )
+
+        raw = response.content[0].text.strip()
 
         # Strip markdown code fences if the LLM wrapped the JSON
         if raw.startswith("```"):
