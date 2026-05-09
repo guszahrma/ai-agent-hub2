@@ -1,5 +1,5 @@
-from .base_agent import BaseAgent
-from .git_agent import GitAgent
+from agents.base_agent import BaseAgent
+from agents.git_agent import GitAgent
 
 SYSTEM_PROMPT = """You are a Scrum Master AI agent operating in a Discord channel.
 
@@ -85,3 +85,22 @@ class ScrumMaster(BaseAgent):
             return f"*(delegated to GitAgent)*\n{followup.content[0].text}"
 
         return response.content[0].text
+
+    def handle_pr_comment(self, comment, repo_ref: str, repo_path: str = None) -> str:
+        """React to a new GitHub PR comment per workprocess: question before acting, reply in PR thread."""
+        diff_context = ""
+        if comment.diff_hunk:
+            diff_context = f"\nCode context (diff hunk):\n```\n{comment.diff_hunk}\n```"
+
+        user_message = (
+            f"New GitHub PR comment detected on PR #{comment.pr_number} "
+            f"'#{comment.pr_title}' in {repo_ref}.\n\n"
+            f"Comment by @{comment.author}:\n{comment.body}"
+            f"{diff_context}\n\n"
+            f"URL: {comment.url}\n\n"
+            "Per workprocess: assess relevance, flag ambiguity, and ask for clarification "
+            "before taking any action. Do not resolve the thread. Any reply must go in the PR thread. "
+            "State your interpretation of the comment and what — if anything — you plan to do. "
+            f"When referencing a commit, link it as: [sha](https://github.com/{repo_ref}/pull/{comment.pr_number}/commits/sha)"
+        )
+        return self.handle_message(user_message, "PRMonitor", repo_ref=repo_ref, repo_path=repo_path)

@@ -25,9 +25,35 @@ When receiving input that implies an action (PR comments, task requests, delegat
 When responding to a PR comment:
 - **Always reply in the comment thread** — never post a standalone issue comment in response to an inline comment
 - **Only the comment author resolves a thread** — agents must never resolve a conversation on behalf of the reviewer
-- Reference the relevant commit SHA when a code change addresses the comment
+- Reference the relevant commit as a clickable link when a code change addresses the comment, using the format: `[abc1234](https://github.com/{owner}/{repo}/pull/{pr_number}/commits/{sha})`
 - **All questions and clarifications go in the PR thread** — never ask the PO or other agents outside the PR (e.g. in chat) when the question relates to a PR comment
-- **Address the relevant role explicitly** — design decisions go to the PO (`@guszahrma`), technical questions go to the relevant specialist agent using the `**[Role]:**` badge syntax
+- **Address the relevant role explicitly** — design decisions go to the PO (`@guszahrma`), technical questions go to the relevant specialist agent using the addressing syntax below
+
+### Addressing syntax
+
+Agents address each other in PR comments using the following syntax:
+
+```
+**[SenderRole] → [RecipientRole]:** message text here
+```
+
+Examples:
+- `**[ScrumMaster] → [CodeReviewer]:** Can you review the auth changes in this PR?`
+- `**[Jeeves] → @guszahrma:** Should this be a breaking change or backwards-compatible?`
+- `**[CodeReviewer] → [GitAgent]:** The branch protection rule seems misconfigured — can you check?`
+
+When addressing the PO, use their GitHub handle (`@guszahrma`) as the recipient. When addressing an agent role, use the role name in brackets. A comment without an explicit recipient is addressed to the whole team.
+
+### How to apply a fix
+
+The method depends on what is being changed:
+
+| Change type | Method |
+|---|---|
+| Documentation / text | Post a GitHub suggestion block in the reply — PO commits it via the "Commit suggestion" button |
+| Code | Commit and push the fix, then include the full diff in the reply comment so the PO can verify without navigating away |
+
+**Why:** GitHub marks a comment "Outdated" as soon as the referenced line changes, hiding it from the Files Changed view. For text changes this is avoided by letting the PO commit the suggestion. For code changes the fix must be committed before it can be tested, so the diff is included in the comment to preserve visibility.
 
 ---
 

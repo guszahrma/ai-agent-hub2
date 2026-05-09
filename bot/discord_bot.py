@@ -1,3 +1,4 @@
+import asyncio
 import os
 import sys
 import signal
@@ -9,6 +10,7 @@ from dotenv import load_dotenv
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from agents.scrum_master import ScrumMaster
+from bot.pr_monitor import PRMonitor
 
 load_dotenv()
 
@@ -51,12 +53,53 @@ def load_repos() -> dict:
     return repos
 
 
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
+PR_POLL_INTERVAL = int(os.getenv("PR_POLL_INTERVAL", "60"))
+
 intents = discord.Intents.default()
 intents.message_content = True
 
 client = discord.Client(intents=intents)
 scrum_master = ScrumMaster()
 repos = load_repos()
+pr_monitor = PRMonitor(GITHUB_TOKEN) if GITHUB_TOKEN else None
+
+
+async def poll_pr_comments():
+    await client.wait_until_ready()
+    if not pr_monitor:
+        print("PR polling disabled: GITHUB_TOKEN not set")
+        return
+
+    ref_to_channel: dict[str, tuple[int, dict]] = {}
+    for channel_id, info in repos.items():
+        ref_to_channel[info["ref"]] = (channel_id, info)
+
+    print(f"PR polling active — checking every {PR_POLL_INTERVAL}s for: {list(ref_to_channel)}")
+
+    while not client.is_closed():
+        for repo_ref, (channel_id, info) in ref_to_channel.items():
+            try:
+                new_comments = pr_monitor.poll(repo_ref)
+            except Exception as e:
+                print(f"PR poll error ({repo_ref}): {e}")
+                continue
+
+            for comment in new_comments:
+                kind = "inline" if comment.comment_type == "review" else "general"
+                print(f"New {kind} PR comment on #{comment.pr_number} by @{comment.author}: {comment.url}")
+                try:
+                    response = scrum_master.handle_pr_comment(
+                        comment,
+                        repo_ref=repo_ref,
+                        repo_path=info.get("path"),
+                    )
+                    pr_monitor.reply(repo_ref, comment, response)
+                    print(f"  → replied on GitHub")
+                except Exception as e:
+                    print(f"  → failed to reply: {e}")
+
+        await asyncio.sleep(PR_POLL_INTERVAL)
 
 
 @client.event
@@ -65,6 +108,7 @@ async def on_ready():
     for channel_id, info in repos.items():
         status = info["path"] or "REPO NOT FOUND LOCALLY"
         print(f"  Channel {channel_id} → {info['ref']} ({status})")
+    asyncio.ensure_future(poll_pr_comments())
 
 
 @client.event

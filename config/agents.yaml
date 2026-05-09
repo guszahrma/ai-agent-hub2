@@ -3,21 +3,5 @@ agents:
     git_name: Jeeves
     git_email: jeeves@ai-agent-hub2
 
-  scrum_master:
-    model: claude-sonnet-4-6
-    max_tokens: 4096
-    git_name: ScrumMaster
-    git_email: scrum-master@ai-agent-hub2
-
-  git_agent:
-    model: claude-sonnet-4-6
-    max_tokens: 4096
-    git_name: GitAgent
-    git_email: git-agent@ai-agent-hub2
-
-  # Add new agents here, e.g.:
-  # code_reviewer:
-  #   model: claude-sonnet-4-6
-  #   max_tokens: 8192
-  #   git_name: CodeReviewer
-  #   git_email: code-reviewer@ai-agent-hub2
+  # Per-agent config lives in agents/<name>/config.yaml
+  # Add new agents by creating agents/<name>/config.yaml
