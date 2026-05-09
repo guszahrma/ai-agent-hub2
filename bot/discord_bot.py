@@ -107,7 +107,10 @@ async def poll_pr_comments():
 
     print(f"PR polling active — checking every {PR_POLL_INTERVAL}s for: {list(ref_to_channel)}")
 
+    poll_count = 0
     while not client.is_closed():
+        poll_count += 1
+        print(f"Poll #{poll_count}")
         for repo_ref, (channel_id, info) in ref_to_channel.items():
             try:
                 new_comments, merged_prs = pr_monitor.poll(repo_ref)

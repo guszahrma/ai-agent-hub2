@@ -1,8 +1,13 @@
 # User Preferences
 
-**Discord name:** Tinarm  
-**Git identity:** guszahrma  
-**Email:** gu92naak@gmail.com  
+Identity values are read from `.env` — see `.env.example` for the full list.
+
+| Variable | Description |
+|---|---|
+| `PO_DISCORD_NAME` | PO's Discord display name |
+| `PO_GITHUB_HANDLE` | PO's GitHub username |
+| `PO_EMAIL` | PO's email address |
+
 **Assistant name:** Jeeves  
 
 **Personal development meetings:**
