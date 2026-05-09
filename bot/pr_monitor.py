@@ -106,24 +106,16 @@ class PRMonitor:
         except requests.HTTPError:
             review_comments = []
 
-        # Track the last comment body per thread root so we can skip comments
-        # where the agent already replied (avoid repeated responses in one thread)
-        last_body_in_thread: dict[int, str] = {}
-
         for c in review_comments:
             cid = c["id"]
             pr_num = c["pull_request_url"].split("/")[-1]
             pr_num = int(pr_num)
-            root_id = c.get("in_reply_to_id") or cid
-            prev_body = last_body_in_thread.get(root_id, "")
-            last_body_in_thread[root_id] = c["body"]
 
             if pr_num not in pr_titles:
                 continue  # skip closed PRs
             if cid not in seen["review"]:
                 seen["review"].add(cid)
-                agent_already_replied = prev_body.startswith("**[")
-                if not is_first_poll and not c["body"].startswith("**[") and not agent_already_replied:
+                if not is_first_poll and not c["body"].startswith("**["):
                     new_comments.append(PRComment(
                         pr_number=pr_num,
                         pr_title=pr_titles[pr_num],
@@ -148,14 +140,11 @@ class PRMonitor:
             except requests.HTTPError:
                 continue
 
-            prev_issue_body = ""
             for c in issue_comments:
                 cid = c["id"]
-                agent_already_replied = prev_issue_body.startswith("**[")
-                prev_issue_body = c["body"]
                 if cid not in seen["issue"]:
                     seen["issue"].add(cid)
-                    if not is_first_poll and not c["body"].startswith("**[") and not agent_already_replied:
+                    if not is_first_poll and not c["body"].startswith("**["):
                         new_comments.append(PRComment(
                             pr_number=pr_num,
                             pr_title=pr_titles[pr_num],
