@@ -21,5 +21,10 @@ Consider whether `BaseAgent` should have a standard hook or memory interface for
 Once the pattern is defined, add personality note files for ScrumMaster (and any other agents built by then).
 
 ### 4. Workprocess documentation
-**Status:** Todo  
+**Status:** In Progress  
 Document the personal development meeting convention in `docs/` so it's clear to anyone reading the repo how agents evolve over time.
+`docs/workprocess.md` created with first principle: "Question before acting". More principles to be added as agreed in personal development meetings.
+
+### 5. Apply workprocess principles to agent system prompts
+**Status:** Todo  
+Agreed principles from `docs/workprocess.md` must be reflected in each agent's system prompt so they are enforced at runtime, not just documented. Start with "Question before acting" for ScrumMaster and GitAgent.
