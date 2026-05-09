@@ -1,4 +1,5 @@
 import os
+import re
 import requests
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -34,6 +35,8 @@ class PRMonitor:
         })
         # {repo_ref: {"review": set_of_seen_ids, "issue": set_of_seen_ids}}
         self._seen: dict[str, dict[str, set]] = {}
+        # {repo_ref: set of PR numbers known to be open}
+        self._open_pr_numbers: dict[str, set] = {}
 
     def _seen_for(self, repo_ref: str) -> dict[str, set]:
         if repo_ref not in self._seen:
@@ -53,8 +56,34 @@ class PRMonitor:
     def _open_prs(self, repo_ref: str) -> list[dict]:
         return self._get(f"{GITHUB_API}/repos/{repo_ref}/pulls", params={"state": "open", "per_page": 100})
 
-    def poll(self, repo_ref: str) -> list[PRComment]:
-        """Return new comments since last poll. Call repeatedly; first call seeds state with no output."""
+    def detect_merged_prs(self, repo_ref: str, current_prs: list[dict]) -> list[dict]:
+        """Return PRs that were open last poll but are now merged/closed."""
+        current_numbers = {pr["number"] for pr in current_prs}
+        known = self._open_pr_numbers.get(repo_ref)
+
+        if known is None:
+            # First poll — seed state, nothing to report
+            self._open_pr_numbers[repo_ref] = current_numbers
+            return []
+
+        merged_numbers = known - current_numbers
+        self._open_pr_numbers[repo_ref] = current_numbers
+
+        if not merged_numbers:
+            return []
+
+        # Fetch details for each merged/closed PR
+        merged = []
+        for num in merged_numbers:
+            resp = self._session.get(f"{GITHUB_API}/repos/{repo_ref}/pulls/{num}")
+            if resp.ok:
+                pr = resp.json()
+                if pr.get("merged_at"):  # only truly merged, not just closed
+                    merged.append(pr)
+        return merged
+
+    def poll(self, repo_ref: str) -> tuple[list[PRComment], list[dict]]:
+        """Return (new_comments, merged_prs) since last poll. First call seeds state with no output."""
         seen = self._seen_for(repo_ref)
         is_first_poll = not seen["review"] and not seen["issue"]
 
@@ -62,6 +91,8 @@ class PRMonitor:
             prs = self._open_prs(repo_ref)
         except requests.HTTPError as e:
             raise RuntimeError(f"GitHub API error fetching PRs for {repo_ref}: {e}")
+
+        merged_prs = self.detect_merged_prs(repo_ref, prs)
 
         pr_titles = {pr["number"]: pr["title"] for pr in prs}
         new_comments: list[PRComment] = []
@@ -137,7 +168,7 @@ class PRMonitor:
                             in_reply_to_id=c.get("in_reply_to_id"),
                         ))
 
-        return new_comments
+        return new_comments, merged_prs
 
     def get_thread_history(self, repo_ref: str, comment: PRComment) -> list[dict]:
         """Return all prior comments in the same thread, sorted oldest first, excluding the trigger comment."""
@@ -162,6 +193,24 @@ class PRMonitor:
             thread = [c for c in all_comments if c["id"] != comment.comment_id]
 
         return [{"author": c["user"]["login"], "body": c["body"]} for c in thread]
+
+    def close_linked_issues(self, repo_ref: str, pr: dict) -> list[int]:
+        """Close issues referenced in PR body with Closes/Fixes/Resolves. Returns closed issue numbers."""
+        body = pr.get("body") or ""
+        pattern = r'(?:closes?|fixes?|resolves?)\s+#(\d+)'
+        issue_numbers = [int(m) for m in re.findall(pattern, body, re.IGNORECASE)]
+        closed = []
+        for num in issue_numbers:
+            resp = self._session.patch(
+                f"{GITHUB_API}/repos/{repo_ref}/issues/{num}",
+                json={"state": "closed"},
+            )
+            if resp.ok:
+                closed.append(num)
+                print(f"  Closed issue #{num}")
+            else:
+                print(f"  Failed to close issue #{num}: {resp.status_code}")
+        return closed
 
     def reply(self, repo_ref: str, comment: PRComment, body: str) -> int:
         """Post a reply to a PR comment on GitHub. Returns the new comment ID."""
