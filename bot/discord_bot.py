@@ -89,10 +89,12 @@ async def poll_pr_comments():
                 kind = "inline" if comment.comment_type == "review" else "general"
                 print(f"New {kind} PR comment on #{comment.pr_number} by @{comment.author}: {comment.url}")
                 try:
+                    thread_history = pr_monitor.get_thread_history(repo_ref, comment)
                     response = scrum_master.handle_pr_comment(
                         comment,
                         repo_ref=repo_ref,
                         repo_path=info.get("path"),
+                        thread_history=thread_history,
                     )
                     if response.to_po:
                         pr_monitor.reply(repo_ref, comment, response.to_po)

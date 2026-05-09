@@ -109,16 +109,22 @@ class ScrumMaster(BaseAgent):
 
         return response.content[0].text
 
-    def handle_pr_comment(self, comment, repo_ref: str, repo_path: str = None) -> PRResponse:
+    def handle_pr_comment(self, comment, repo_ref: str, repo_path: str = None, thread_history: list = None) -> PRResponse:
         """React to a new GitHub PR comment. Returns a structured PRResponse."""
         diff_context = ""
         if comment.diff_hunk:
             diff_context = f"\nCode context (diff hunk):\n```\n{comment.diff_hunk}\n```"
 
+        history_text = ""
+        if thread_history:
+            lines = "\n".join(f"[@{c['author']}]: {c['body']}" for c in thread_history)
+            history_text = f"\nThread history (oldest first):\n{lines}\n"
+
         user_message = (
-            f"New GitHub PR comment on PR #{comment.pr_number} '{comment.pr_title}' in {repo_ref}.\n\n"
-            f"Comment by @{comment.author}:\n{comment.body}"
-            f"{diff_context}\n\n"
+            f"PR #{comment.pr_number} '{comment.pr_title}' in {repo_ref}."
+            f"{diff_context}"
+            f"{history_text}\n"
+            f"Latest comment by @{comment.author} (respond to this):\n{comment.body}\n\n"
             f"Commit link format: [sha](https://github.com/{repo_ref}/pull/{comment.pr_number}/commits/sha)\n\n"
             "Respond with the required JSON structure."
         )

@@ -18,6 +18,7 @@ class PRComment:
     created_at: str
     url: str
     diff_hunk: str = ""  # only for inline review comments
+    in_reply_to_id: int = None  # None means this is a thread root
 
 
 class PRMonitor:
@@ -93,6 +94,7 @@ class PRMonitor:
                         created_at=c["created_at"],
                         url=c["html_url"],
                         diff_hunk=c.get("diff_hunk", ""),
+                        in_reply_to_id=c.get("in_reply_to_id"),
                     ))
 
         # General issue comments on each open PR
@@ -120,9 +122,34 @@ class PRMonitor:
                             body=c["body"],
                             created_at=c["created_at"],
                             url=c["html_url"],
+                            in_reply_to_id=c.get("in_reply_to_id"),
                         ))
 
         return new_comments
+
+    def get_thread_history(self, repo_ref: str, comment: PRComment) -> list[dict]:
+        """Return all prior comments in the same thread, sorted oldest first, excluding the trigger comment."""
+        root_id = comment.in_reply_to_id or comment.comment_id
+
+        if comment.comment_type == "review":
+            all_comments = self._get(
+                f"{GITHUB_API}/repos/{repo_ref}/pulls/comments",
+                params={"per_page": 100, "sort": "created", "direction": "asc"},
+            )
+            thread = [
+                c for c in all_comments
+                if (c["id"] == root_id or c.get("in_reply_to_id") == root_id)
+                and c["id"] != comment.comment_id
+            ]
+        else:
+            all_comments = self._get(
+                f"{GITHUB_API}/repos/{repo_ref}/issues/{comment.pr_number}/comments",
+                params={"per_page": 100},
+            )
+            # Issue comments have no threading; return all prior comments in the PR
+            thread = [c for c in all_comments if c["id"] != comment.comment_id]
+
+        return [{"author": c["user"]["login"], "body": c["body"]} for c in thread]
 
     def reply(self, repo_ref: str, comment: PRComment, body: str) -> int:
         """Post a reply to a PR comment on GitHub. Returns the new comment ID."""
