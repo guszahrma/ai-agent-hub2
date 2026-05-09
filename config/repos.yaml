@@ -1,0 +1,8 @@
+repos:
+  # Maps Discord channel_id (as string) to repo info.
+  # The bot listens only to channels listed here.
+  # project_name is resolved against GIT_BASE_DIR in .env.
+
+  "1498659259188121650":
+    ref: guszahrma/ai-agent-hub2
+    name: AI Agent Hub

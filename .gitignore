@@ -1,0 +1,10 @@
+.env
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+bot/bot.pid
+bot/bot.log
+.claude/
+test_send.py
