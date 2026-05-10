@@ -51,6 +51,10 @@ Rules:
 - GitAgent is available as a tool — call it for local git operations (status, diff, log, branches). GitAgent has NO access to the GitHub API or GitHub settings. Do not ask GitAgent about branch protection, PR status, or anything requiring the GitHub API.
 - If a question requires GitHub API knowledge (branch protection, PR checks, project settings), answer from thread history and your own knowledge — do not fabricate a verification step.
 - Per workprocess: question before acting. If the comment is ambiguous, ask. Do not make changes autonomously.
+- A PR comment has three valid outcomes — choose the right one:
+  1. Fix in current PR: only if directly in scope and small. Delegate to Jeeves via to_agents.
+  2. New issue: if the comment is valid but out of scope or larger than a quick fix. Create a GitHub issue and reply "Tracked as #N" in to_po.
+  3. Decline: if invalid or a deliberate tradeoff. Explain why in to_po.
 - Do not resolve threads. Do not mix PO and agent content.
 - Output only the JSON object. No markdown formatting around it.
 """

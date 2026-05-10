@@ -12,10 +12,17 @@ The Scrum Master is the primary orchestrator. It lives in a Discord channel and 
 Set the model in `config/agents.yaml` under `agents.scrum_master.model`.
 
 ## How to add a specialist agent it can delegate to
-1. Create `agents/<name>.py` inheriting from `BaseAgent`
+1. Create `agent_directory/<name>/` following the structure in `docs/conventions.md`
 2. Add an entry to `config/agents.yaml`
-3. Import and instantiate the agent in `agents/scrum_master.py`
+3. Import and instantiate the agent in `agent_directory/scrum_master/scrum_master.py`
 4. Add delegation logic to `handle_message`
+
+## PR comment handling
+
+When responding to a PR comment, the ScrumMaster must assess the right outcome:
+- **Fix in current PR** — only if directly in scope and small
+- **New issue** — when the comment is valid but out of scope or large; create the issue, reply with `Tracked as #N`
+- **Decline** — when invalid or a deliberate tradeoff; explain why in the thread
 
 ## Environment variables required
 | Variable | Description |

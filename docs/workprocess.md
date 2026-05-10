@@ -46,6 +46,21 @@ When addressing the PO, use their GitHub handle (`@${PO_GITHUB_HANDLE}`) as the 
 
 **One comment per recipient** — never mix PO-facing and agent-facing content in the same comment. If a response requires both a PO update and agent delegation, post them as separate comments.
 
+### Outcomes of a PR comment
+
+Not every PR comment leads to a change in the current PR. The three valid outcomes are:
+
+| Outcome | When to use |
+|---|---|
+| **Fix in current PR** | The comment is directly related to the PR's scope and small enough to address immediately |
+| **New issue** | The comment surfaces something valid but out of scope, or larger than a quick fix — track it separately so the current PR can proceed |
+| **Decline with explanation** | The comment is invalid, based on a misunderstanding, or a known tradeoff that was deliberately chosen |
+
+When creating a new issue from a PR comment:
+- Create the issue with enough context that it can be understood without reading the PR thread
+- Reply in the PR thread with the issue number: `Tracked as #N`
+- Link the PR comment in the issue body so the origin is traceable
+
 ### How to apply a fix
 
 The method depends on what is being changed:
