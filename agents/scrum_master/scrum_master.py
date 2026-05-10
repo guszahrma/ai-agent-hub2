@@ -162,7 +162,10 @@ class ScrumMaster(BaseAgent):
 
             messages += [
                 {"role": "assistant", "content": assistant_content},
-                {"role": "user", "content": [{"type": "tool_result", "tool_use_id": tool_use.id, "content": git_result}]},
+                {"role": "user", "content": [
+                    {"type": "tool_result", "tool_use_id": tool_use.id, "content": git_result},
+                    {"type": "text", "text": "Now output ONLY the JSON object as specified. No text before or after it."},
+                ]},
             ]
 
             response = self.client.messages.create(
