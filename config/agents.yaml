@@ -3,5 +3,5 @@ agents:
     git_name: Jeeves
     git_email: jeeves@ai-agent-hub2
 
-  # Per-agent config lives in agents/<name>/config.yaml
-  # Add new agents by creating agents/<name>/config.yaml
+  # Per-agent config lives in agent_directory/<name>/config.yaml
+  # Add new agents by creating agent_directory/<name>/config.yaml

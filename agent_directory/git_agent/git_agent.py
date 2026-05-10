@@ -1,4 +1,4 @@
-from agents.base_agent import BaseAgent
+from agent_directory.base_agent import BaseAgent
 from tools import git_tools
 
 SYSTEM_PROMPT = """You are a Git specialist agent. You interpret natural language git requests and report results clearly.

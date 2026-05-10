@@ -1,8 +1,8 @@
 import json
 import os
 from dataclasses import dataclass, field
-from agents.base_agent import BaseAgent
-from agents.git_agent import GitAgent
+from agent_directory.base_agent import BaseAgent
+from agent_directory.git_agent import GitAgent
 
 PO_HANDLE = os.getenv("PO_GITHUB_HANDLE", "guszahrma")
 

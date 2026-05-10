@@ -10,7 +10,7 @@ import yaml
 from dotenv import load_dotenv
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from agents.scrum_master import ScrumMaster
+from agent_directory.scrum_master import ScrumMaster
 from bot.pr_monitor import PRMonitor
 
 load_dotenv()
