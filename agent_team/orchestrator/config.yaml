@@ -1,0 +1,3 @@
+extends: scrum_master
+# Project agent name ("orchestrator") is independent of the base agent name ("scrum_master").
+# Only fields that differ from the base need to be listed here.

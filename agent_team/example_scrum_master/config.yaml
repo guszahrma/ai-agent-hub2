@@ -1,3 +1,0 @@
-extends: scrum_master
-# No overrides — uses base scrum_master config as-is.
-# Add fields here to override (e.g. model: claude-opus-4-7)
