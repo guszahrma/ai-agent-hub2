@@ -7,11 +7,13 @@ Git integration is a first-class feature. Each Discord channel maps to a git rep
 ## Structure
 
 ```
-agents/          # One file per agent, all inherit from BaseAgent
+agent_directory/ # All available agents (Agent Directory) — each in its own subfolder
 bot/             # Discord listener — hands messages to the Scrum Master
 config/          # Model assignments per agent (swap models here, not in code)
-docs/agents/     # Human-readable explanation of each agent
+docs/            # Documentation and conventions
 ```
+
+See [docs/conventions.md](docs/conventions.md) for naming standards and agent terminology.
 
 ## Quickstart
 
@@ -41,10 +43,10 @@ Valid model IDs: `claude-sonnet-4-6`, `claude-opus-4-7`, `claude-haiku-4-5-20251
 
 ## Adding a new agent
 
-1. Create `agents/<name>.py` inheriting `BaseAgent`
+1. Create `agent_directory/<name>/` with `config.yaml`, `docs.md`, `__init__.py`, and implementation
 2. Add it to `config/agents.yaml`
-3. Import it in `agents/scrum_master.py` and wire up delegation logic
-4. Add a doc file at `docs/agents/<name>.md`
+3. Import it where needed and wire up delegation logic
+4. See [docs/conventions.md](docs/conventions.md) for required structure
 
 ## Agents
 
