@@ -1,6 +1,18 @@
 # Conventions
 
+Standards that apply across this repository for both human and agent contributors.
+
 Standards that apply across this repository. Follow these before adding files, folders, or agents.
+
+## Commits
+
+One commit per GitHub issue or sub-task. This applies to both human and agent contributors.
+
+- Commit messages reference the issue they close: `Closes #N`
+- Each commit should be independently understandable and revertable
+- Avoid bundling multiple issues into one commit — the issue breakdown defines the right granularity
+
+Agent-specific note: agents plan work in issues before writing code, so the issue structure naturally defines commit boundaries. A session covering multiple issues should produce multiple commits.
 
 ## Naming
 
