@@ -147,7 +147,9 @@ class ScrumMaster(BaseAgent):
             messages=messages,
         )
 
-        if response.stop_reason == "tool_use":
+        for _ in range(5):  # allow up to 5 tool calls before forcing a text response
+            if response.stop_reason != "tool_use":
+                break
             tool_use = next(b for b in response.content if b.type == "tool_use")
             request = tool_use.input["request"]
 
@@ -156,7 +158,6 @@ class ScrumMaster(BaseAgent):
             else:
                 git_result = "No local repo path configured — cannot run git operations."
 
-            # Serialize SDK content objects to plain dicts to avoid SDK serialization issues
             assistant_content = []
             for block in response.content:
                 if block.type == "text":
@@ -179,6 +180,9 @@ class ScrumMaster(BaseAgent):
                 tools=[GIT_TOOL],
                 messages=messages,
             )
+
+        if response.stop_reason == "tool_use":
+            return PRResponse(to_po=f"**[ScrumMaster] → @{PO_HANDLE}:** Could not produce a response after multiple tool calls.")
 
         raw = response.content[0].text.strip()
 
