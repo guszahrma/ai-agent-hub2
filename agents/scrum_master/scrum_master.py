@@ -152,8 +152,16 @@ class ScrumMaster(BaseAgent):
             else:
                 git_result = "No local repo path configured — cannot run git operations."
 
+            # Serialize SDK content objects to plain dicts to avoid SDK serialization issues
+            assistant_content = []
+            for block in response.content:
+                if block.type == "text":
+                    assistant_content.append({"type": "text", "text": block.text})
+                elif block.type == "tool_use":
+                    assistant_content.append({"type": "tool_use", "id": block.id, "name": block.name, "input": block.input})
+
             messages += [
-                {"role": "assistant", "content": response.content},
+                {"role": "assistant", "content": assistant_content},
                 {"role": "user", "content": [{"type": "tool_result", "tool_use_id": tool_use.id, "content": git_result}]},
             ]
 
