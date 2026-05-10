@@ -1,5 +1,6 @@
 import asyncio
 import os
+import subprocess
 import sys
 import signal
 from pathlib import Path
@@ -65,6 +66,35 @@ repos = load_repos()
 pr_monitor = PRMonitor(GITHUB_TOKEN) if GITHUB_TOKEN else None
 
 
+def handle_merged_pr(pr: dict, repo_ref: str, repo_path: str | None):
+    branch = pr.get("head", {}).get("ref", "")
+    print(f"PR #{pr['number']} merged ({pr['title']!r}) — branch: {branch!r}")
+
+    if branch and branch not in ("main", "master") and repo_path:
+        result = subprocess.run(
+            ["git", "push", "origin", "--delete", branch],
+            cwd=repo_path, capture_output=True, text=True,
+        )
+        if result.returncode == 0:
+            print(f"  Deleted remote branch {branch!r}")
+        else:
+            print(f"  Remote branch delete: {result.stderr.strip()}")
+
+        result = subprocess.run(
+            ["git", "branch", "-d", branch],
+            cwd=repo_path, capture_output=True, text=True,
+        )
+        if result.returncode == 0:
+            print(f"  Deleted local branch {branch!r}")
+        else:
+            print(f"  Local branch delete: {result.stderr.strip()}")
+
+    if pr_monitor:
+        closed = pr_monitor.close_linked_issues(repo_ref, pr)
+        if closed:
+            print(f"  Closed linked issues: {closed}")
+
+
 async def poll_pr_comments():
     await client.wait_until_ready()
     if not pr_monitor:
@@ -77,13 +107,22 @@ async def poll_pr_comments():
 
     print(f"PR polling active — checking every {PR_POLL_INTERVAL}s for: {list(ref_to_channel)}")
 
+    poll_count = 0
     while not client.is_closed():
+        poll_count += 1
+        print(f"Poll #{poll_count}")
         for repo_ref, (channel_id, info) in ref_to_channel.items():
             try:
-                new_comments = pr_monitor.poll(repo_ref)
+                new_comments, merged_prs = pr_monitor.poll(repo_ref)
             except Exception as e:
                 print(f"PR poll error ({repo_ref}): {e}")
                 continue
+
+            for pr in merged_prs:
+                try:
+                    handle_merged_pr(pr, repo_ref, info.get("path"))
+                except Exception as e:
+                    print(f"  → merge handling failed: {e}")
 
             for comment in new_comments:
                 kind = "inline" if comment.comment_type == "review" else "general"

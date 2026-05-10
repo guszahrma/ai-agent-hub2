@@ -46,9 +46,10 @@ Your response MUST be a raw JSON object — no markdown, no code fences, no surr
 {{"to_po": "...", "to_agents": [...]}}
 
 Rules:
-- "to_po": one sentence starting with **[ScrumMaster] → @{PO_HANDLE}:** — state your interpretation and what you will do or ask next. No reasoning, no preamble.
-- "to_agents": list of {{"recipient": "AgentName", "message": "..."}} — only include if delegating a specific task to a known agent. Leave empty if no delegation is needed.
-- Only delegate to agents that exist: GitAgent. Do not invent agents.
+- "to_po": start with **[ScrumMaster] → @{PO_HANDLE}:** — give the complete, final answer. If you called GitAgent, include its actual output (branch name, commits, etc.) in full. Never say "I will get" or "let me fetch" — by the time you write to_po, all tool calls are done and you have all the data you need.
+- "to_agents": list of {{"recipient": "AgentName", "message": "..."}} — only use this to notify Jeeves of a task that requires code changes or manual implementation. Do NOT claim Jeeves is "working on it" or "active" — Jeeves is a human-triggered assistant and will only act when a human opens Claude Code.
+- GitAgent is available as a tool — call it for local git operations (status, diff, log, branches). GitAgent has NO access to the GitHub API or GitHub settings. Do not ask GitAgent about branch protection, PR status, or anything requiring the GitHub API.
+- If a question requires GitHub API knowledge (branch protection, PR checks, project settings), answer from thread history and your own knowledge — do not fabricate a verification step.
 - Per workprocess: question before acting. If the comment is ambiguous, ask. Do not make changes autonomously.
 - Do not resolve threads. Do not mix PO and agent content.
 - Output only the JSON object. No markdown formatting around it.
@@ -132,12 +133,50 @@ class ScrumMaster(BaseAgent):
             "Respond with the required JSON structure."
         )
 
-        raw = self.client.messages.create(
+        messages = [{"role": "user", "content": user_message}]
+
+        response = self.client.messages.create(
             model=self.model,
-            max_tokens=512,
+            max_tokens=1024,
             system=PR_COMMENT_SYSTEM,
-            messages=[{"role": "user", "content": user_message}],
-        ).content[0].text.strip()
+            tools=[GIT_TOOL],
+            messages=messages,
+        )
+
+        if response.stop_reason == "tool_use":
+            tool_use = next(b for b in response.content if b.type == "tool_use")
+            request = tool_use.input["request"]
+
+            if repo_path:
+                git_result = self._git_agent.handle(request, repo_path)
+            else:
+                git_result = "No local repo path configured — cannot run git operations."
+
+            # Serialize SDK content objects to plain dicts to avoid SDK serialization issues
+            assistant_content = []
+            for block in response.content:
+                if block.type == "text":
+                    assistant_content.append({"type": "text", "text": block.text})
+                elif block.type == "tool_use":
+                    assistant_content.append({"type": "tool_use", "id": block.id, "name": block.name, "input": block.input})
+
+            messages += [
+                {"role": "assistant", "content": assistant_content},
+                {"role": "user", "content": [
+                    {"type": "tool_result", "tool_use_id": tool_use.id, "content": git_result},
+                    {"type": "text", "text": "Now output ONLY the JSON object as specified. No text before or after it."},
+                ]},
+            ]
+
+            response = self.client.messages.create(
+                model=self.model,
+                max_tokens=512,
+                system=PR_COMMENT_SYSTEM,
+                tools=[GIT_TOOL],
+                messages=messages,
+            )
+
+        raw = response.content[0].text.strip()
 
         # Strip markdown code fences if the LLM wrapped the JSON
         if raw.startswith("```"):

@@ -8,3 +8,4 @@ bot/bot.pid
 bot/bot.log
 .claude/
 test_send.py
+.vscode/
