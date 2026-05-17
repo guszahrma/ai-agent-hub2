@@ -1,5 +1,6 @@
 import os
 import anthropic
+import requests
 import yaml
 from pathlib import Path
 
@@ -12,11 +13,24 @@ class BaseAgent:
         self.name = name
         self.system_prompt = system_prompt
         self.client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+        self.github = self._make_github_session()
         agent_config = self._load_agent_config(name)
         self.model = model or agent_config.get("model", "claude-sonnet-4-6")
         self.max_tokens = agent_config.get("max_tokens", 4096)
         self.git_name = agent_config.get("git_name", name)
         self.git_email = agent_config.get("git_email", f"{name}@ai-agent-hub2")
+
+    def _make_github_session(self) -> requests.Session | None:
+        token = os.getenv("GITHUB_TOKEN")
+        if not token:
+            return None
+        session = requests.Session()
+        session.headers.update({
+            "Authorization": f"Bearer {token}",
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+        })
+        return session
 
     def _load_agent_config(self, name: str) -> dict:
         # Look for per-agent config.yaml first, fall back to global agents.yaml
