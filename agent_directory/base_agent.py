@@ -102,11 +102,15 @@ class BaseAgent:
         return "\n\n".join(parts)
 
     def _prompt_with_memory(self, base_prompt: str) -> str:
-        """Append agent memory to a system prompt if any memory exists."""
+        """Prepend shared rules and append agent memory to a system prompt."""
+        parts = [base_prompt]
+        shared_docs = Path(__file__).parent / "base_agent" / "docs.md"
+        if shared_docs.exists():
+            parts.append(f"---\n## Shared team rules\n{shared_docs.read_text()}")
         memory = self._load_memory()
-        if not memory:
-            return base_prompt
-        return f"{base_prompt}\n\n---\n## Your memory from past interactions\n{memory}"
+        if memory:
+            parts.append(f"---\n## Your memory from past interactions\n{memory}")
+        return "\n\n".join(parts)
 
     def _save_memory_entry(self, name: str, type_: str, description: str, content: str):
         """Write a memory file and update the MEMORY.md index."""

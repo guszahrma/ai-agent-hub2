@@ -1,0 +1,2 @@
+# Project-level shared config.
+# No 'extends' key — not treated as an agent by agent_loader.

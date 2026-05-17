@@ -1,0 +1,4 @@
+# Shared defaults for all agents.
+# Individual agents override these in their own config.yaml.
+model: claude-sonnet-4-6
+max_tokens: 4096
