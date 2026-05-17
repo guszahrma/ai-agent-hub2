@@ -105,11 +105,11 @@ class StateStore:
     def seed_comment(self, repo_ref: str, pr_number: int, comment_id: int,
                      thread_root_id: int, author: str, body: str, created_at: str,
                      url: str, path: str, original_line: int, comment_type: str,
-                     anchored_arbitrarily: bool = False):
-        """Seed an already-seen comment as resolved (called on first-ever poll for a PR)."""
+                     anchored_arbitrarily: bool = False, status: str = "resolved"):
+        """Seed a comment with a known status (default resolved, for first-ever poll)."""
         self._upsert_comment(
             repo_ref, pr_number, comment_id, thread_root_id, author, body,
-            created_at, url, path, original_line, comment_type, status="resolved",
+            created_at, url, path, original_line, comment_type, status=status,
             anchored_arbitrarily=anchored_arbitrarily,
         )
 
@@ -220,6 +220,8 @@ class StateStore:
             thread["status"] = "resolved"
         elif "pending" in statuses:
             thread["status"] = "pending"
+        elif "awaiting_user" in statuses:
+            thread["status"] = "awaiting_user"
         elif "delegated_to_scrum_master" in statuses:
             thread["status"] = "delegated_to_scrum_master"
         elif "new" in statuses:

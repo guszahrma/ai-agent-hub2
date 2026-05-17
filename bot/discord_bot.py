@@ -223,8 +223,9 @@ async def poll_pr_comments():
                             )
                             print(f"  → delegated to {agent_msg['recipient']}")
                     elif response.to_po:
-                        reply_id = pr_monitor.reply(repo_ref, comment, response.to_po)
-                        new_status = "awaiting_user" if response.question else "resolved"
+                        reply_id = pr_monitor.reply(repo_ref, comment, response.to_po,
+                                                    is_question=response.question)
+                        new_status = "pending" if response.question else "resolved"
                         state_store.set_comment_status(
                             repo_ref, comment.pr_number, comment.comment_id,
                             new_status, resolved_by=reply_id

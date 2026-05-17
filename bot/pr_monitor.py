@@ -272,9 +272,13 @@ class PRMonitor:
         path = files[0]["filename"] if files else "README.md"
         return commit_id, path, 1
 
-    def reply(self, repo_ref: str, comment: PRComment, body: str) -> int:
+    def reply(self, repo_ref: str, comment: PRComment, body: str,
+              is_question: bool = False) -> int:
         """Post a reply to a PR comment. Always replies as a review comment (threaded).
-        For issue comments, anchors to the first changed line of the first file."""
+        For issue comments, anchors to the first changed line of the first file.
+        Pass is_question=True when the reply is a clarifying question awaiting user input."""
+        reply_status = "awaiting_user" if is_question else "resolved"
+
         if comment.comment_type == "review":
             url = f"{GITHUB_API}/repos/{repo_ref}/pulls/{comment.pr_number}/comments/{comment.comment_id}/replies"
             resp = self._session.post(url, json={"body": body})
@@ -286,7 +290,7 @@ class PRMonitor:
                 thread_root_id=thread_root_id,
                 author="bot", body=body, created_at="",
                 url="", path=comment.path, original_line=comment.original_line,
-                comment_type="review",
+                comment_type="review", status=reply_status,
             )
         else:
             commit_id, path, line = self._get_pr_anchor(repo_ref, comment.pr_number)
@@ -305,7 +309,6 @@ class PRMonitor:
                 thread_root_id=new_id,
                 author="bot", body=body, created_at="",
                 url="", path=path, original_line=line,
-                comment_type="review",
-                anchored_arbitrarily=True,
+                comment_type="review", anchored_arbitrarily=True, status=reply_status,
             )
         return new_id
