@@ -1,0 +1,4 @@
+model: claude-sonnet-4-6
+max_tokens: 4096
+git_name: CodeEditor
+git_email: code-editor@ai-agent-hub2

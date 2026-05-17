@@ -1,0 +1,4 @@
+model: claude-haiku-4-5-20251001
+max_tokens: 1024
+git_name: IssueManager
+git_email: issue-manager@ai-agent-hub2

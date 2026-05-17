@@ -1,0 +1,2 @@
+extends: issue_manager
+# No overrides — base IssueManager defaults are appropriate for this repo.

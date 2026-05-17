@@ -74,8 +74,8 @@ Your response MUST be a raw JSON object — no markdown, no code fences, no surr
 {{"to_po": "...", "to_agents": [...], "question": false}}
 
 Rules:
-- "to_po": start with **[ScrumMaster] → @{PO_HANDLE}:** — give the complete, final answer. If you called GitAgent, include its actual output (branch name, commits, etc.) in full. Never say "I will get" or "let me fetch" — by the time you write to_po, all tool calls are done and you have all the data you need.
-- "to_agents": list of {{"recipient": "AgentName", "message": "..."}} — only use this to notify Jeeves of a task that requires code changes or manual implementation. Do NOT claim Jeeves is "working on it" or "active" — Jeeves is a human-triggered assistant and will only act when a human opens Claude Code.
+- "to_po": start with **[ScrumMaster] → @{PO_HANDLE}:** — give the complete, final answer. If you called GitAgent, include its actual output (branch name, commits, etc.) in full. Never say "I will get" or "let me fetch" — by the time you write to_po, all tool calls are done and you have all the data you need. IMPORTANT: to_po must be plain text — never embed JSON inside it.
+- "to_agents": list of {{"recipient": "AgentName", "message": "..."}} — use this whenever the user's comment results in a task for Jeeves (code changes, agent implementation, bug fixes, issue creation). If the user confirms a proposed action ("yes", "go ahead", "please implement"), you MUST include a to_agents entry for Jeeves with full task detail — do not just acknowledge and close. Do NOT claim Jeeves is "working on it" or "active" — Jeeves is a human-triggered assistant and will only act when a human opens Claude Code.
 - "question": set to true if your to_po asks the user a question and you are waiting for their answer before you can act. Leave false for final answers, delegations, and declines.
 - GitAgent is available as a tool — call it for local git operations (status, diff, log, branches). GitAgent has NO access to the GitHub API or GitHub settings. Do not ask GitAgent about branch protection, PR status, or anything requiring the GitHub API.
 - delegate_to_code_reviewer is available as a tool — use it when asked to review the PR or verify code quality. It fetches the diff itself and posts findings as inline review comments. Do NOT use GitAgent for code review.
@@ -83,12 +83,12 @@ Rules:
 - If a question requires GitHub API knowledge (branch protection, PR checks, project settings), answer from thread history and your own knowledge — do not fabricate a verification step.
 - Per workprocess: question before acting. If the comment is ambiguous, ask. Do not make changes autonomously.
 - A PR comment has four valid outcomes — choose the right one:
-  1. Fix in current PR: only if directly in scope and small. Delegate to Jeeves via to_agents.
+  1. Fix in current PR / implement task: only if directly in scope. Delegate to Jeeves via to_agents with a specific task description.
   2. New issue: if the comment is valid but out of scope or larger than a quick fix. Create a GitHub issue and reply "Tracked as #N" in to_po.
   3. Decline: if invalid or a deliberate tradeoff. Explain why in to_po.
   4. Ask for clarification: if the comment is ambiguous or you need more information before acting. Set question: true in the response.
 - Do not resolve threads. Do not mix PO and agent content.
-- Output only the JSON object. No markdown formatting around it.
+- Output only the raw JSON object. No markdown formatting around it. No JSON inside to_po.
 """
 
 
@@ -249,8 +249,18 @@ class ScrumMaster(BaseAgent):
 
         try:
             data = json.loads(raw)
+            to_po = data.get("to_po", "")
+            # Guard against LLM double-wrapping: to_po should never itself be JSON
+            if isinstance(to_po, str) and to_po.lstrip().startswith("{"):
+                try:
+                    inner = json.loads(to_po)
+                    if "to_po" in inner:
+                        data = inner
+                        to_po = inner.get("to_po", "")
+                except json.JSONDecodeError:
+                    pass
             return PRResponse(
-                to_po=data.get("to_po", ""),
+                to_po=to_po,
                 to_agents=data.get("to_agents", []),
                 question=bool(data.get("question", False)),
             )
