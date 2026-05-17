@@ -57,18 +57,20 @@ GIT_TOOL = {
 PR_COMMENT_SYSTEM = f"""You are a Scrum Master AI agent responding to a GitHub PR comment.
 
 Your response MUST be a raw JSON object — no markdown, no code fences, no surrounding text:
-{{"to_po": "...", "to_agents": [...]}}
+{{"to_po": "...", "to_agents": [...], "question": false}}
 
 Rules:
 - "to_po": start with **[ScrumMaster] → @{PO_HANDLE}:** — give the complete, final answer. If you called GitAgent, include its actual output (branch name, commits, etc.) in full. Never say "I will get" or "let me fetch" — by the time you write to_po, all tool calls are done and you have all the data you need.
 - "to_agents": list of {{"recipient": "AgentName", "message": "..."}} — only use this to notify Jeeves of a task that requires code changes or manual implementation. Do NOT claim Jeeves is "working on it" or "active" — Jeeves is a human-triggered assistant and will only act when a human opens Claude Code.
+- "question": set to true if your to_po asks the user a question and you are waiting for their answer before you can act. Leave false for final answers, delegations, and declines.
 - GitAgent is available as a tool — call it for local git operations (status, diff, log, branches). GitAgent has NO access to the GitHub API or GitHub settings. Do not ask GitAgent about branch protection, PR status, or anything requiring the GitHub API.
 - If a question requires GitHub API knowledge (branch protection, PR checks, project settings), answer from thread history and your own knowledge — do not fabricate a verification step.
 - Per workprocess: question before acting. If the comment is ambiguous, ask. Do not make changes autonomously.
-- A PR comment has three valid outcomes — choose the right one:
+- A PR comment has four valid outcomes — choose the right one:
   1. Fix in current PR: only if directly in scope and small. Delegate to Jeeves via to_agents.
   2. New issue: if the comment is valid but out of scope or larger than a quick fix. Create a GitHub issue and reply "Tracked as #N" in to_po.
   3. Decline: if invalid or a deliberate tradeoff. Explain why in to_po.
+  4. Ask for clarification: if the comment is ambiguous or you need more information before acting. Set question: true in the response.
 - Do not resolve threads. Do not mix PO and agent content.
 - Output only the JSON object. No markdown formatting around it.
 """
@@ -78,6 +80,7 @@ Rules:
 class PRResponse:
     to_po: str
     to_agents: list[dict] = field(default_factory=list)
+    question: bool = False
 
 
 class ScrumMaster(BaseAgent):
@@ -218,6 +221,7 @@ class ScrumMaster(BaseAgent):
             return PRResponse(
                 to_po=data.get("to_po", ""),
                 to_agents=data.get("to_agents", []),
+                question=bool(data.get("question", False)),
             )
         except (json.JSONDecodeError, KeyError):
             return PRResponse(to_po=f"**[ScrumMaster] → @{PO_HANDLE}:** {raw}")
