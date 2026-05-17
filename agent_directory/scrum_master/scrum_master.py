@@ -4,6 +4,20 @@ from dataclasses import dataclass, field
 from agent_directory.base_agent import BaseAgent
 from agent_directory.git_agent import GitAgent
 
+DELEGATION_CHECK_SYSTEM = """You are a Scrum Master checking on the progress of a delegated task.
+
+Given a PR thread and a pending delegation, determine if the work has been completed.
+
+Your response MUST be a raw JSON object:
+{"status": "pending|in_progress|resolved", "notes": "one sentence summary"}
+
+- "resolved": Jeeves has posted a clear completion report in the thread (look for **[Jeeves]** comments confirming done with a commit SHA)
+- "in_progress": Jeeves has acknowledged the task but not completed it
+- "pending": no update from Jeeves yet
+
+Be conservative — only set "resolved" if there is clear evidence of completion.
+"""
+
 PO_HANDLE = os.getenv("PO_GITHUB_HANDLE", "guszahrma")
 
 SYSTEM_PROMPT = """You are a Scrum Master AI agent operating in a Discord channel.
@@ -201,3 +215,30 @@ class ScrumMaster(BaseAgent):
             )
         except (json.JSONDecodeError, KeyError):
             return PRResponse(to_po=f"**[ScrumMaster] → @{PO_HANDLE}:** {raw}")
+
+    def check_pending_delegation(self, pr_number: int, pr_title: str, repo_ref: str,
+                                  thread_history: list[dict], delegation: dict) -> dict:
+        """Check if a pending delegation has been completed. Returns {status, notes}."""
+        history_text = "\n".join(f"[@{c['author']}]: {c['body']}" for c in thread_history)
+        user_message = (
+            f"PR #{pr_number} '{pr_title}' in {repo_ref}.\n"
+            f"Pending delegation (ID {delegation['id']}): "
+            f"agent={delegation['agent']}, task={delegation['task']!r}\n\n"
+            f"Thread history:\n{history_text}\n\n"
+            "Has this delegation been completed? Respond with the required JSON."
+        )
+        response = self.client.messages.create(
+            model=self.model,
+            max_tokens=256,
+            system=DELEGATION_CHECK_SYSTEM,
+            messages=[{"role": "user", "content": user_message}],
+        )
+        raw = response.content[0].text.strip()
+        if raw.startswith("```"):
+            raw = "\n".join(
+                line for line in raw.splitlines() if not line.startswith("```")
+            ).strip()
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError:
+            return {"status": "pending", "notes": raw}
