@@ -110,10 +110,13 @@ class ScrumMaster(BaseAgent):
             tool_use = next(b for b in response.content if b.type == "tool_use")
             request = tool_use.input["request"]
 
-            if repo_path:
-                git_result = self._git_agent.handle(request, repo_path)
-            else:
-                git_result = "No repo configured for this channel — cannot run git operations."
+            try:
+                if repo_path:
+                    git_result = self._git_agent.handle(request, repo_path)
+                else:
+                    git_result = "No repo configured for this channel — cannot run git operations."
+            except Exception as e:
+                git_result = f"GitAgent error: {e}"
 
             messages += [
                 {"role": "assistant", "content": response.content},
@@ -167,10 +170,13 @@ class ScrumMaster(BaseAgent):
             tool_use = next(b for b in response.content if b.type == "tool_use")
             request = tool_use.input["request"]
 
-            if repo_path:
-                git_result = self._git_agent.handle(request, repo_path)
-            else:
-                git_result = "No local repo path configured — cannot run git operations."
+            try:
+                if repo_path:
+                    git_result = self._git_agent.handle(request, repo_path)
+                else:
+                    git_result = "No local repo path configured — cannot run git operations."
+            except Exception as e:
+                git_result = f"GitAgent error: {e}"
 
             assistant_content = []
             for block in response.content:
