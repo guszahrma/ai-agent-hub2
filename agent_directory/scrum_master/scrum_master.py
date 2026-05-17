@@ -3,6 +3,7 @@ import os
 from dataclasses import dataclass, field
 from agent_directory.base_agent import BaseAgent
 from agent_directory.git_agent import GitAgent
+from agent_directory.code_reviewer.code_reviewer import CodeReviewer
 
 DELEGATION_CHECK_SYSTEM = """You are a Scrum Master checking on the progress of a delegated task.
 
@@ -38,6 +39,19 @@ When delegating, say so explicitly so the team can follow along.
 Keep responses concise — this is a chat channel, not a document editor.
 """
 
+CODE_REVIEWER_TOOL = {
+    "name": "delegate_to_code_reviewer",
+    "description": "Run a full code review on the PR. Posts each finding as an inline review comment. Use this when asked to review a PR or verify code quality — do NOT use GitAgent for this.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "repo_ref": {"type": "string", "description": "Repository reference, e.g. owner/repo"},
+            "pr_number": {"type": "integer", "description": "PR number to review"},
+        },
+        "required": ["repo_ref", "pr_number"],
+    },
+}
+
 GIT_TOOL = {
     "name": "delegate_to_git_agent",
     "description": "Delegate a git-related request to the GitAgent specialist.",
@@ -64,6 +78,8 @@ Rules:
 - "to_agents": list of {{"recipient": "AgentName", "message": "..."}} — only use this to notify Jeeves of a task that requires code changes or manual implementation. Do NOT claim Jeeves is "working on it" or "active" — Jeeves is a human-triggered assistant and will only act when a human opens Claude Code.
 - "question": set to true if your to_po asks the user a question and you are waiting for their answer before you can act. Leave false for final answers, delegations, and declines.
 - GitAgent is available as a tool — call it for local git operations (status, diff, log, branches). GitAgent has NO access to the GitHub API or GitHub settings. Do not ask GitAgent about branch protection, PR status, or anything requiring the GitHub API.
+- delegate_to_code_reviewer is available as a tool — use it when asked to review the PR or verify code quality. It fetches the diff itself and posts findings as inline review comments. Do NOT use GitAgent for code review.
+- Comments starting with **[CodeReviewer] are automated findings. Route blockers to Jeeves (fix in current PR) and suggestions as new issues or declines.
 - If a question requires GitHub API knowledge (branch protection, PR checks, project settings), answer from thread history and your own knowledge — do not fabricate a verification step.
 - Per workprocess: question before acting. If the comment is ambiguous, ask. Do not make changes autonomously.
 - A PR comment has four valid outcomes — choose the right one:
@@ -91,6 +107,7 @@ class ScrumMaster(BaseAgent):
             model=model,
         )
         self._git_agent = GitAgent()
+        self._code_reviewer = CodeReviewer()
 
     def handle_message(self, user_message: str, username: str, repo_ref: str = None, repo_path: str = None) -> str:
         if repo_ref and repo_path:
@@ -159,11 +176,13 @@ class ScrumMaster(BaseAgent):
 
         messages = [{"role": "user", "content": user_message}]
 
+        tools = [GIT_TOOL, CODE_REVIEWER_TOOL]
+
         response = self.client.messages.create(
             model=self.model,
             max_tokens=1024,
             system=PR_COMMENT_SYSTEM,
-            tools=[GIT_TOOL],
+            tools=tools,
             messages=messages,
         )
 
@@ -171,15 +190,21 @@ class ScrumMaster(BaseAgent):
             if response.stop_reason != "tool_use":
                 break
             tool_use = next(b for b in response.content if b.type == "tool_use")
-            request = tool_use.input["request"]
 
             try:
-                if repo_path:
-                    git_result = self._git_agent.handle(request, repo_path)
-                else:
-                    git_result = "No local repo path configured — cannot run git operations."
+                if tool_use.name == "delegate_to_code_reviewer":
+                    tool_result = self._code_reviewer.review_and_post(
+                        tool_use.input["repo_ref"],
+                        tool_use.input["pr_number"],
+                    )
+                else:  # delegate_to_git_agent
+                    request = tool_use.input["request"]
+                    if repo_path:
+                        tool_result = self._git_agent.handle(request, repo_path)
+                    else:
+                        tool_result = "No local repo path configured — cannot run git operations."
             except Exception as e:
-                git_result = f"GitAgent error: {e}"
+                tool_result = f"Tool error ({tool_use.name}): {e}"
 
             assistant_content = []
             for block in response.content:
@@ -191,7 +216,7 @@ class ScrumMaster(BaseAgent):
             messages += [
                 {"role": "assistant", "content": assistant_content},
                 {"role": "user", "content": [
-                    {"type": "tool_result", "tool_use_id": tool_use.id, "content": git_result},
+                    {"type": "tool_result", "tool_use_id": tool_use.id, "content": tool_result},
                     {"type": "text", "text": "Now output ONLY the JSON object as specified. No text before or after it."},
                 ]},
             ]
@@ -200,7 +225,7 @@ class ScrumMaster(BaseAgent):
                 model=self.model,
                 max_tokens=512,
                 system=PR_COMMENT_SYSTEM,
-                tools=[GIT_TOOL],
+                tools=tools,
                 messages=messages,
             )
 

@@ -9,6 +9,8 @@ from bot.state_store import StateStore
 
 GITHUB_API = "https://api.github.com"
 
+BOT_REPLY_PREFIXES = ("**[ScrumMaster]", "**[Jeeves]")
+
 
 @dataclass
 class PRComment:
@@ -109,7 +111,7 @@ class PRMonitor:
             if self._state_store.is_seen(repo_ref, pr_num, cid):
                 continue
 
-            if is_first_pr_poll or c["body"].startswith("**["):
+            if is_first_pr_poll or any(c["body"].startswith(p) for p in BOT_REPLY_PREFIXES):
                 self._state_store.seed_comment(
                     repo_ref=repo_ref, pr_number=pr_num, comment_id=cid,
                     thread_root_id=thread_root_id,
@@ -160,7 +162,7 @@ class PRMonitor:
                 if self._state_store.is_seen(repo_ref, pr_num, cid):
                     continue
 
-                if is_first_pr_poll or c["body"].startswith("**["):
+                if is_first_pr_poll or any(c["body"].startswith(p) for p in BOT_REPLY_PREFIXES):
                     self._state_store.seed_comment(
                         repo_ref=repo_ref, pr_number=pr_num, comment_id=cid,
                         thread_root_id=cid,
