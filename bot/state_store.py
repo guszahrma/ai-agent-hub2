@@ -77,7 +77,9 @@ class StateStore:
         if key not in self._states:
             return False
         _, comment = self._find_comment(self._states[key], str(comment_id))
-        return comment is not None
+        if comment is None:
+            return False
+        return comment.get("status") != "new"
 
     def has_pr_state(self, repo_ref: str, pr_number: int) -> bool:
         return (repo_ref, pr_number) in self._states
