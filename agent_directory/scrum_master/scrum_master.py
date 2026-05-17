@@ -1,9 +1,11 @@
 import json
 import os
+import re
 from dataclasses import dataclass, field
 from agent_directory.base_agent import BaseAgent
 from agent_directory.git_agent import GitAgent
 from agent_directory.code_reviewer.code_reviewer import CodeReviewer
+from agent_directory.agent_loader import load_project_agents
 
 DELEGATION_CHECK_SYSTEM = """You are a Scrum Master checking on the progress of a delegated task.
 
@@ -75,21 +77,45 @@ Your response MUST be a raw JSON object — no markdown, no code fences, no surr
 
 Rules:
 - "to_po": start with **[ScrumMaster] → @{PO_HANDLE}:** — give the complete, final answer. If you called GitAgent, include its actual output (branch name, commits, etc.) in full. Never say "I will get" or "let me fetch" — by the time you write to_po, all tool calls are done and you have all the data you need. IMPORTANT: to_po must be plain text — never embed JSON inside it.
-- "to_agents": list of {{"recipient": "AgentName", "message": "..."}} — use this whenever the user's comment results in a task for Jeeves (code changes, agent implementation, bug fixes, issue creation). If the user confirms a proposed action ("yes", "go ahead", "please implement"), you MUST include a to_agents entry for Jeeves with full task detail — do not just acknowledge and close. Do NOT claim Jeeves is "working on it" or "active" — Jeeves is a human-triggered assistant and will only act when a human opens Claude Code.
+- "to_agents": list of {{"recipient": "AgentName", "message": "..."}} — use this to route tasks to any agent in the team (see roster injected below). Choose the agent whose role fits the task. If the user confirms a proposed action, you MUST include a to_agents entry — do not just acknowledge and close. Agents only act when a human triggers them; do not claim they are already working.
 - "question": set to true if your to_po asks the user a question and you are waiting for their answer before you can act. Leave false for final answers, delegations, and declines.
 - GitAgent is available as a tool — call it for local git operations (status, diff, log, branches). GitAgent has NO access to the GitHub API or GitHub settings. Do not ask GitAgent about branch protection, PR status, or anything requiring the GitHub API.
 - delegate_to_code_reviewer is available as a tool — use it when asked to review the PR or verify code quality. It fetches the diff itself and posts findings as inline review comments. Do NOT use GitAgent for code review.
-- Comments starting with **[CodeReviewer] are automated findings. Route blockers to Jeeves (fix in current PR) and suggestions as new issues or declines.
+- Comments starting with **[CodeReviewer] are automated findings. Route blockers to the appropriate agent (fix in current PR) and suggestions as new issues or declines.
 - If a question requires GitHub API knowledge (branch protection, PR checks, project settings), answer from thread history and your own knowledge — do not fabricate a verification step.
 - Per workprocess: question before acting. If the comment is ambiguous, ask. Do not make changes autonomously.
 - A PR comment has four valid outcomes — choose the right one:
-  1. Fix in current PR / implement task: only if directly in scope. Delegate to Jeeves via to_agents with a specific task description.
+  1. Fix in current PR / implement task: delegate to the appropriate agent via to_agents with a specific task description.
   2. New issue: if the comment is valid but out of scope or larger than a quick fix. Create a GitHub issue and reply "Tracked as #N" in to_po.
   3. Decline: if invalid or a deliberate tradeoff. Explain why in to_po.
   4. Ask for clarification: if the comment is ambiguous or you need more information before acting. Set question: true in the response.
 - Do not resolve threads. Do not mix PO and agent content.
 - Output only the raw JSON object. No markdown formatting around it. No JSON inside to_po.
 """
+
+
+def _build_roster(repo_path: str | None) -> str:
+    """Build a one-line-per-agent roster string from the agent_team folder."""
+    if not repo_path:
+        return ""
+    try:
+        agents = load_project_agents(repo_path)
+    except Exception:
+        return ""
+    if not agents:
+        return ""
+    lines = []
+    for agent in agents:
+        name = agent["name"]
+        prompt = agent.get("system_prompt") or ""
+        # Extract the Purpose paragraph: text after "## Purpose" up to the next heading
+        purpose_match = re.search(r'##\s+Purpose\s+(.*?)(?=##|\Z)', prompt, re.DOTALL)
+        if purpose_match:
+            purpose = purpose_match.group(1).strip().splitlines()[0]
+        else:
+            purpose = prompt.strip().splitlines()[0] if prompt else "(no description)"
+        lines.append(f"- {name}: {purpose}")
+    return "Agent roster:\n" + "\n".join(lines)
 
 
 @dataclass
@@ -178,10 +204,16 @@ class ScrumMaster(BaseAgent):
 
         tools = [GIT_TOOL, CODE_REVIEWER_TOOL]
 
+        roster = _build_roster(repo_path)
+        base_system = PR_COMMENT_SYSTEM
+        if roster:
+            base_system = f"{PR_COMMENT_SYSTEM}\n\n{roster}"
+        system_prompt = self._prompt_with_memory(base_system)
+
         response = self.client.messages.create(
             model=self.model,
             max_tokens=1024,
-            system=self._prompt_with_memory(PR_COMMENT_SYSTEM),
+            system=system_prompt,
             tools=tools,
             messages=messages,
         )
@@ -227,7 +259,7 @@ class ScrumMaster(BaseAgent):
                 response = self.client.messages.create(
                     model=self.model,
                     max_tokens=512,
-                    system=PR_COMMENT_SYSTEM,
+                    system=system_prompt,
                     tools=tools,
                     messages=messages,
                 )
