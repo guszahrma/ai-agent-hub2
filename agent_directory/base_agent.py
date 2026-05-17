@@ -69,10 +69,24 @@ class BaseAgent:
             return path.read_text()
         return None
 
+    def write_local_file(self, repo_path: str, relative_path: str, content: str) -> None:
+        """Write content to a file in the local repo, creating parent dirs as needed."""
+        path = Path(repo_path) / relative_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content)
+
     def list_local_files(self, repo_path: str, pattern: str = "**/*") -> list[str]:
         """List files in the local repo matching a glob pattern. Returns relative paths."""
         base = Path(repo_path)
         return [str(p.relative_to(base)) for p in base.glob(pattern) if p.is_file()]
+
+    def commit_and_push(self, repo_path: str, message: str, files: list[str]) -> str:
+        """Stage files, commit with agent identity, push, and return the short commit SHA."""
+        from tools import git_tools
+        git_tools.add(repo_path, files)
+        git_tools.commit(repo_path, message, author_name=self.git_name, author_email=self.git_email)
+        git_tools.push(repo_path)
+        return git_tools.head_sha(repo_path)
 
     def _load_memory(self) -> str:
         """Load MEMORY.md and all files it links to. Returns empty string if no memory."""

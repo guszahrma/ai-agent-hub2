@@ -88,6 +88,14 @@ def pull(repo_path: str, remote: str = "origin", branch: str = None) -> str:
     return _run(args, repo_path)
 
 
+def head_sha(repo_path: str, short: bool = True) -> str:
+    args = ["rev-parse"]
+    if short:
+        args.append("--short")
+    args.append("HEAD")
+    return _run(args, repo_path)
+
+
 def push(repo_path: str, remote: str = "origin", branch: str = None, confirmed: bool = False) -> str:
     target = branch or current_branch(repo_path)
     if target in PROTECTED_BRANCHES and not confirmed:
