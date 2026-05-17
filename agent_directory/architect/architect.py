@@ -21,8 +21,14 @@ class Architect(BaseAgent):
             model=model,
         )
 
-    def execute(self, task: str, repo_ref: str = None) -> str | None:
-        return self.review_design(task)
+    def execute(self, task: str, repo_ref: str = None, repo_path: str = None, pr_number: int = None) -> str | None:
+        context = ""
+        if repo_ref and pr_number:
+            try:
+                context = self.fetch_pr_diff(repo_ref, pr_number)
+            except Exception:
+                pass
+        return self.review_design(task, context=context)
 
     def review_design(self, description: str, context: str = "") -> str:
         """Evaluate a design proposal and return a recommendation."""

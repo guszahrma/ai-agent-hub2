@@ -61,7 +61,7 @@ class IssueManager(BaseAgent):
         )
         return resp.ok
 
-    def execute(self, task: str, repo_ref: str = None) -> str | None:
+    def execute(self, task: str, repo_ref: str = None, repo_path: str = None, pr_number: int = None) -> str | None:
         return self.execute_task(task, repo_ref or "")
 
     def execute_task(self, task: str, repo_ref: str) -> str:

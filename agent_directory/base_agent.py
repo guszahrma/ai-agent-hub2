@@ -62,6 +62,18 @@ class BaseAgent:
                 parts.append(f"--- a/{f['filename']}\n+++ b/{f['filename']}\n{patch}")
         return "\n".join(parts)
 
+    def read_local_file(self, repo_path: str, relative_path: str) -> str | None:
+        """Read a file from the local repo. Returns content or None if not found."""
+        path = Path(repo_path) / relative_path
+        if path.exists() and path.is_file():
+            return path.read_text()
+        return None
+
+    def list_local_files(self, repo_path: str, pattern: str = "**/*") -> list[str]:
+        """List files in the local repo matching a glob pattern. Returns relative paths."""
+        base = Path(repo_path)
+        return [str(p.relative_to(base)) for p in base.glob(pattern) if p.is_file()]
+
     def _load_memory(self) -> str:
         """Load MEMORY.md and all files it links to. Returns empty string if no memory."""
         index = self.memory_path / "MEMORY.md"
@@ -129,7 +141,7 @@ Output only the JSON object.""",
         except Exception as e:
             print(f"  [{self.name}] Reflection failed: {e}")
 
-    def execute(self, task: str, repo_ref: str = None) -> str | None:
+    def execute(self, task: str, repo_ref: str = None, repo_path: str = None, pr_number: int = None) -> str | None:
         """Standard dispatch entry point. Override in each agent subclass."""
         return None
 

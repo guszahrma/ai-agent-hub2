@@ -87,12 +87,12 @@ _AGENT_REGISTRY: dict[str, object] = {
 }
 
 
-def _dispatch_to_agent(name: str, task: str, repo_ref: str) -> str | None:
+def _dispatch_to_agent(name: str, task: str, repo_ref: str, repo_path: str = None, pr_number: int = None) -> str | None:
     agent = _AGENT_REGISTRY.get(name.lower().replace("-", "_"))
     if agent is None:
         return None
     try:
-        return agent.execute(task, repo_ref=repo_ref)
+        return agent.execute(task, repo_ref=repo_ref, repo_path=repo_path, pr_number=pr_number)
     except Exception as e:
         return f"Agent error: {e}"
 
@@ -251,7 +251,7 @@ async def poll_pr_comments():
                                 task=agent_msg["message"][:200],
                             )
                             print(f"  → delegated to {agent_msg['recipient']}")
-                            result = _dispatch_to_agent(agent_msg["recipient"], agent_msg["message"], repo_ref)
+                            result = _dispatch_to_agent(agent_msg["recipient"], agent_msg["message"], repo_ref, repo_path=info.get("path"), pr_number=comment.pr_number)
                             if result:
                                 agent_body = f"**[{agent_msg['recipient']}]:** {result}"
                                 pr_monitor.reply(repo_ref, comment, agent_body)

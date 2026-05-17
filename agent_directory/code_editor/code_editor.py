@@ -33,8 +33,14 @@ class CodeEditor(BaseAgent):
             model=model,
         )
 
-    def execute(self, task: str, repo_ref: str = None) -> str | None:
-        return self.plan_change(task)
+    def execute(self, task: str, repo_ref: str = None, repo_path: str = None, pr_number: int = None) -> str | None:
+        diff = ""
+        if repo_ref and pr_number:
+            try:
+                diff = self.fetch_pr_diff(repo_ref, pr_number)
+            except Exception:
+                pass
+        return self.plan_change(task, file_content=diff)
 
     def plan_change(self, task: str, file_content: str = "") -> str:
         """Given a task description and optional current file content, return a change plan."""
