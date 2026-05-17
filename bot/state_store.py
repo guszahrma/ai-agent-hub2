@@ -104,11 +104,13 @@ class StateStore:
 
     def seed_comment(self, repo_ref: str, pr_number: int, comment_id: int,
                      thread_root_id: int, author: str, body: str, created_at: str,
-                     url: str, path: str, original_line: int, comment_type: str):
+                     url: str, path: str, original_line: int, comment_type: str,
+                     anchored_arbitrarily: bool = False):
         """Seed an already-seen comment as resolved (called on first-ever poll for a PR)."""
         self._upsert_comment(
             repo_ref, pr_number, comment_id, thread_root_id, author, body,
             created_at, url, path, original_line, comment_type, status="resolved",
+            anchored_arbitrarily=anchored_arbitrarily,
         )
 
     def add_new_comment(self, repo_ref: str, pr_number: int, comment_id: int,
@@ -123,7 +125,7 @@ class StateStore:
     def _upsert_comment(self, repo_ref: str, pr_number: int, comment_id: int,
                         thread_root_id: int, author: str, body: str, created_at: str,
                         url: str, path: str, original_line: int, comment_type: str,
-                        status: str):
+                        status: str, anchored_arbitrarily: bool = False):
         state = self._get_or_create(repo_ref, pr_number)
         thread_key = str(thread_root_id)
 
@@ -132,7 +134,7 @@ class StateStore:
                 "type": comment_type,
                 "path": path,
                 "original_line": original_line,
-                "anchored_arbitrarily": False,
+                "anchored_arbitrarily": anchored_arbitrarily,
                 "status": status,
                 "comments": [],
             }

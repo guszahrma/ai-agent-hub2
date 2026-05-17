@@ -245,22 +245,67 @@ class PRMonitor:
                 print(f"  Failed to close issue #{num}: {resp.status_code}")
         return closed
 
+    def _get_pr_anchor(self, repo_ref: str, pr_number: int) -> tuple[str, str, int]:
+        """Return (commit_sha, path, line) for anchoring a review comment to the PR diff."""
+        pr_resp = self._session.get(f"{GITHUB_API}/repos/{repo_ref}/pulls/{pr_number}")
+        pr_resp.raise_for_status()
+        commit_id = pr_resp.json()["head"]["sha"]
+
+        files_resp = self._session.get(
+            f"{GITHUB_API}/repos/{repo_ref}/pulls/{pr_number}/files",
+            params={"per_page": 100},
+        )
+        files_resp.raise_for_status()
+        files = files_resp.json()
+
+        for file_data in files:
+            if file_data.get("status") == "removed":
+                continue
+            patch = file_data.get("patch", "")
+            if not patch:
+                continue
+            path = file_data["filename"]
+            m = re.search(r'@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@', patch)
+            line = int(m.group(1)) if m else 1
+            return commit_id, path, line
+
+        path = files[0]["filename"] if files else "README.md"
+        return commit_id, path, 1
+
     def reply(self, repo_ref: str, comment: PRComment, body: str) -> int:
-        """Post a reply to a PR comment. Returns the new comment ID."""
+        """Post a reply to a PR comment. Always replies as a review comment (threaded).
+        For issue comments, anchors to the first changed line of the first file."""
         if comment.comment_type == "review":
             url = f"{GITHUB_API}/repos/{repo_ref}/pulls/{comment.pr_number}/comments/{comment.comment_id}/replies"
+            resp = self._session.post(url, json={"body": body})
+            resp.raise_for_status()
+            new_id = resp.json()["id"]
+            thread_root_id = comment.in_reply_to_id or comment.comment_id
+            self._state_store.seed_comment(
+                repo_ref=repo_ref, pr_number=comment.pr_number, comment_id=new_id,
+                thread_root_id=thread_root_id,
+                author="bot", body=body, created_at="",
+                url="", path=comment.path, original_line=comment.original_line,
+                comment_type="review",
+            )
         else:
-            url = f"{GITHUB_API}/repos/{repo_ref}/issues/{comment.pr_number}/comments"
-        resp = self._session.post(url, json={"body": body})
-        resp.raise_for_status()
-        new_id = resp.json()["id"]
-        thread_root_id = comment.in_reply_to_id or comment.comment_id
-        # Seed the bot's own reply as resolved so it's not re-processed
-        self._state_store.seed_comment(
-            repo_ref=repo_ref, pr_number=comment.pr_number, comment_id=new_id,
-            thread_root_id=thread_root_id,
-            author="bot", body=body, created_at="",
-            url="", path=comment.path, original_line=comment.original_line,
-            comment_type=comment.comment_type,
-        )
+            commit_id, path, line = self._get_pr_anchor(repo_ref, comment.pr_number)
+            url = f"{GITHUB_API}/repos/{repo_ref}/pulls/{comment.pr_number}/comments"
+            resp = self._session.post(url, json={
+                "body": body,
+                "commit_id": commit_id,
+                "path": path,
+                "line": line,
+                "side": "RIGHT",
+            })
+            resp.raise_for_status()
+            new_id = resp.json()["id"]
+            self._state_store.seed_comment(
+                repo_ref=repo_ref, pr_number=comment.pr_number, comment_id=new_id,
+                thread_root_id=new_id,
+                author="bot", body=body, created_at="",
+                url="", path=path, original_line=line,
+                comment_type="review",
+                anchored_arbitrarily=True,
+            )
         return new_id
