@@ -186,25 +186,28 @@ class ScrumMaster(BaseAgent):
             messages=messages,
         )
 
-        for _ in range(5):  # allow up to 5 tool calls before forcing a text response
+        for _ in range(5):  # allow up to 5 tool call rounds before forcing a text response
             if response.stop_reason != "tool_use":
                 break
-            tool_use = next(b for b in response.content if b.type == "tool_use")
 
-            try:
-                if tool_use.name == "delegate_to_code_reviewer":
-                    tool_result = self._code_reviewer.review_and_post(
-                        tool_use.input["repo_ref"],
-                        tool_use.input["pr_number"],
-                    )
-                else:  # delegate_to_git_agent
-                    request = tool_use.input["request"]
-                    if repo_path:
-                        tool_result = self._git_agent.handle(request, repo_path)
-                    else:
-                        tool_result = "No local repo path configured — cannot run git operations."
-            except Exception as e:
-                tool_result = f"Tool error ({tool_use.name}): {e}"
+            tool_uses = [b for b in response.content if b.type == "tool_use"]
+            tool_results = []
+            for tool_use in tool_uses:
+                try:
+                    if tool_use.name == "delegate_to_code_reviewer":
+                        result = self._code_reviewer.review_and_post(
+                            tool_use.input["repo_ref"],
+                            tool_use.input["pr_number"],
+                        )
+                    else:  # delegate_to_git_agent
+                        request = tool_use.input["request"]
+                        if repo_path:
+                            result = self._git_agent.handle(request, repo_path)
+                        else:
+                            result = "No local repo path configured — cannot run git operations."
+                except Exception as e:
+                    result = f"Tool error ({tool_use.name}): {e}"
+                tool_results.append({"type": "tool_result", "tool_use_id": tool_use.id, "content": result})
 
             assistant_content = []
             for block in response.content:
@@ -215,19 +218,22 @@ class ScrumMaster(BaseAgent):
 
             messages += [
                 {"role": "assistant", "content": assistant_content},
-                {"role": "user", "content": [
-                    {"type": "tool_result", "tool_use_id": tool_use.id, "content": tool_result},
+                {"role": "user", "content": tool_results + [
                     {"type": "text", "text": "Now output ONLY the JSON object as specified. No text before or after it."},
                 ]},
             ]
 
-            response = self.client.messages.create(
-                model=self.model,
-                max_tokens=512,
-                system=PR_COMMENT_SYSTEM,
-                tools=tools,
-                messages=messages,
-            )
+            try:
+                response = self.client.messages.create(
+                    model=self.model,
+                    max_tokens=512,
+                    system=PR_COMMENT_SYSTEM,
+                    tools=tools,
+                    messages=messages,
+                )
+            except Exception as e:
+                print(f"  ScrumMaster follow-up API error: {e}")
+                break
 
         if response.stop_reason == "tool_use":
             return PRResponse(to_po=f"**[ScrumMaster] → @{PO_HANDLE}:** Could not produce a response after multiple tool calls.")
