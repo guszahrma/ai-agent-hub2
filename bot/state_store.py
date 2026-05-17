@@ -84,6 +84,20 @@ class StateStore:
     def has_pr_state(self, repo_ref: str, pr_number: int) -> bool:
         return (repo_ref, pr_number) in self._states
 
+    def warn_phantom_comments(self, repo_ref: str, pr_number: int, github_ids: set[int]):
+        """Log warnings for comment IDs in state that are no longer on GitHub."""
+        key = (repo_ref, pr_number)
+        if key not in self._states:
+            return
+        for thread in self._states[key]["threads"].values():
+            for comment in thread.get("comments", []):
+                url = comment.get("url", "")
+                if not url:
+                    continue
+                cid = int(comment["id"])
+                if cid not in github_ids:
+                    print(f"  [StateStore] Warning: comment {cid} in state but missing from GitHub (deleted?): {url}")
+
     def get_unresolved(self) -> list[dict]:
         """Return all comments with status 'delegated_to_scrum_master' or 'pending'."""
         result = []

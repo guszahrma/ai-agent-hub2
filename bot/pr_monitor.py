@@ -89,6 +89,10 @@ class PRMonitor:
         pr_titles = {pr["number"]: pr["title"] for pr in prs}
         new_comments: list[PRComment] = []
 
+        # Track GitHub comment IDs per PR for reconciliation
+        github_review_ids_by_pr: dict[int, set[int]] = {}
+        github_issue_ids_by_pr: dict[int, set[int]] = {}
+
         # Inline review comments
         try:
             review_comments = self._get(
@@ -104,6 +108,7 @@ class PRMonitor:
             pr_num = int(c["pull_request_url"].split("/")[-1])
             if pr_num not in pr_titles:
                 continue
+            github_review_ids_by_pr.setdefault(pr_num, set()).add(cid)
 
             is_first_pr_poll = not self._state_store.has_pr_state(repo_ref, pr_num)
             thread_root_id = c.get("in_reply_to_id") or cid
@@ -159,6 +164,7 @@ class PRMonitor:
 
             for c in issue_comments:
                 cid = c["id"]
+                github_issue_ids_by_pr.setdefault(pr_num, set()).add(cid)
                 if self._state_store.is_seen(repo_ref, pr_num, cid):
                     continue
 
@@ -189,14 +195,24 @@ class PRMonitor:
                         url=c["html_url"],
                     ))
 
-        # Sync GitHub Resolve Conversation state per PR
+        # Sync GitHub Resolve Conversation state per PR + reconcile state vs GitHub
         for pr in prs:
+            pr_num = pr["number"]
             try:
-                resolved_roots = self._get_resolved_thread_root_ids(repo_ref, pr["number"])
+                resolved_roots = self._get_resolved_thread_root_ids(repo_ref, pr_num)
                 for root_id in resolved_roots:
-                    self._state_store.resolve_thread(repo_ref, pr["number"], root_id)
+                    self._state_store.resolve_thread(repo_ref, pr_num, root_id)
             except Exception as e:
-                print(f"PR poll warning: failed to sync resolved threads for PR #{pr['number']}: {e}")
+                print(f"PR poll warning: failed to sync resolved threads for PR #{pr_num}: {e}")
+
+            try:
+                all_github_ids = (
+                    github_review_ids_by_pr.get(pr_num, set())
+                    | github_issue_ids_by_pr.get(pr_num, set())
+                )
+                self._state_store.warn_phantom_comments(repo_ref, pr_num, all_github_ids)
+            except Exception as e:
+                print(f"PR poll warning: reconciliation failed for PR #{pr_num}: {e}")
 
         return new_comments, merged_prs
 
@@ -327,13 +343,15 @@ class PRMonitor:
             url = f"{GITHUB_API}/repos/{repo_ref}/pulls/{comment.pr_number}/comments/{comment.comment_id}/replies"
             resp = self._session.post(url, json={"body": body})
             resp.raise_for_status()
-            new_id = resp.json()["id"]
+            reply_data = resp.json()
+            new_id = reply_data["id"]
             thread_root_id = comment.in_reply_to_id or comment.comment_id
             self._state_store.seed_comment(
                 repo_ref=repo_ref, pr_number=comment.pr_number, comment_id=new_id,
                 thread_root_id=thread_root_id,
-                author="bot", body=body, created_at="",
-                url="", path=comment.path, original_line=comment.original_line,
+                author="bot", body=body, created_at=reply_data.get("created_at", ""),
+                url=reply_data.get("html_url", ""), path=comment.path,
+                original_line=comment.original_line,
                 comment_type="review", status=reply_status,
             )
         else:
@@ -347,12 +365,13 @@ class PRMonitor:
                 "side": "RIGHT",
             })
             resp.raise_for_status()
-            new_id = resp.json()["id"]
+            reply_data = resp.json()
+            new_id = reply_data["id"]
             self._state_store.seed_comment(
                 repo_ref=repo_ref, pr_number=comment.pr_number, comment_id=new_id,
                 thread_root_id=new_id,
-                author="bot", body=body, created_at="",
-                url="", path=path, original_line=line,
+                author="bot", body=body, created_at=reply_data.get("created_at", ""),
+                url=reply_data.get("html_url", ""), path=path, original_line=line,
                 comment_type="review", anchored_arbitrarily=True, status=reply_status,
             )
         return new_id

@@ -56,6 +56,14 @@ def load_repos() -> dict:
 
 
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
+
+_CONFIRMATION_KEYWORDS = ("yes", "go ahead", "please implement", "please add",
+                          "approved", "please do", "ok", "okay", "sure", "proceed")
+
+
+def _looks_like_confirmation(body: str) -> bool:
+    lower = body.lower()
+    return any(kw in lower for kw in _CONFIRMATION_KEYWORDS)
 PR_POLL_INTERVAL = int(os.getenv("PR_POLL_INTERVAL", "60"))
 
 intents = discord.Intents.default()
@@ -225,7 +233,13 @@ async def poll_pr_comments():
                     elif response.to_po:
                         reply_id = pr_monitor.reply(repo_ref, comment, response.to_po,
                                                     is_question=response.question)
-                        new_status = "pending" if response.question else "resolved"
+                        if response.question:
+                            new_status = "pending"
+                        elif _looks_like_confirmation(comment.body):
+                            new_status = "pending"
+                            print(f"  → Warning: ScrumMaster produced no delegation for what looks like a confirmation (comment {comment.comment_id}). Marking pending.")
+                        else:
+                            new_status = "resolved"
                         state_store.set_comment_status(
                             repo_ref, comment.pr_number, comment.comment_id,
                             new_status, resolved_by=reply_id
