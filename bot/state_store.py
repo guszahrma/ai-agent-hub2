@@ -152,6 +152,17 @@ class StateStore:
             })
         self._save(repo_ref, pr_number)
 
+    def resolve_thread(self, repo_ref: str, pr_number: int, thread_root_id: int):
+        """Mark a thread as resolved based on GitHub's Resolve Conversation signal."""
+        key = (repo_ref, pr_number)
+        if key not in self._states:
+            return
+        thread = self._states[key]["threads"].get(str(thread_root_id))
+        if thread is None or thread.get("status") == "resolved":
+            return
+        thread["status"] = "resolved"
+        self._save(repo_ref, pr_number)
+
     def set_comment_status(self, repo_ref: str, pr_number: int, comment_id: int,
                            status: str, resolved_by: int = None):
         state = self._get_or_create(repo_ref, pr_number)

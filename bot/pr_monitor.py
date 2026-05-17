@@ -189,7 +189,49 @@ class PRMonitor:
                         url=c["html_url"],
                     ))
 
+        # Sync GitHub Resolve Conversation state per PR
+        for pr in prs:
+            try:
+                resolved_roots = self._get_resolved_thread_root_ids(repo_ref, pr["number"])
+                for root_id in resolved_roots:
+                    self._state_store.resolve_thread(repo_ref, pr["number"], root_id)
+            except Exception as e:
+                print(f"PR poll warning: failed to sync resolved threads for PR #{pr['number']}: {e}")
+
         return new_comments, merged_prs
+
+    def _get_resolved_thread_root_ids(self, repo_ref: str, pr_number: int) -> set[int]:
+        """Return root comment IDs of all GitHub-resolved review threads via GraphQL."""
+        owner, repo = repo_ref.split("/")
+        query = """
+        query($owner: String!, $repo: String!, $pr: Int!) {
+          repository(owner: $owner, name: $repo) {
+            pullRequest(number: $pr) {
+              reviewThreads(first: 100) {
+                nodes {
+                  isResolved
+                  comments(first: 1) {
+                    nodes { databaseId }
+                  }
+                }
+              }
+            }
+          }
+        }
+        """
+        resp = self._session.post(
+            "https://api.github.com/graphql",
+            json={"query": query, "variables": {"owner": owner, "repo": repo, "pr": pr_number}},
+        )
+        resp.raise_for_status()
+        threads = (
+            resp.json()["data"]["repository"]["pullRequest"]["reviewThreads"]["nodes"]
+        )
+        return {
+            t["comments"]["nodes"][0]["databaseId"]
+            for t in threads
+            if t["isResolved"] and t["comments"]["nodes"]
+        }
 
     def get_thread_history(self, repo_ref: str, comment: PRComment) -> list[dict]:
         """Return all prior comments in the same thread, sorted oldest first, excluding the trigger comment."""
