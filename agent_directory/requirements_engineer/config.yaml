@@ -1,0 +1,4 @@
+model: claude-sonnet-4-6
+max_tokens: 4096
+git_name: RequirementsEngineer
+git_email: requirements-engineer@ai-agent-hub2

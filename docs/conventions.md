@@ -67,6 +67,9 @@ git_email: agent@ai-agent-hub2 # required — used for git commit attribution
 | scrum_master | ✓ | ✓ | ✓ | `scrum_master.py` | Conforms |
 | git_agent | ✓ | ✓ | ✓ | `git_agent.py` | Conforms |
 | jeeves | ✓ | ✓ | ✓ | n/a (Claude Code) | Conforms |
+| code_reviewer | ✓ | ✓ | ✓ | `code_reviewer.py` | Conforms |
+| architect | ✓ | ✓ | ✓ | `architect.py` | Conforms |
+| requirements_engineer | ✓ | ✓ | ✓ | `requirements_engineer.py` | Conforms |
 
 ## Agent Team structure
 
