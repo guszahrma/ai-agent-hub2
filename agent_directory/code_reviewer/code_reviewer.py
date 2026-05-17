@@ -35,11 +35,12 @@ class CodeReviewer(BaseAgent):
             model=model,
         )
 
-    def review_pr(self, pr_number: int, diff: str, context: str = "") -> str:
-        """Review a PR diff and return structured feedback."""
-        content = f"PR #{pr_number}\n"
+    def review_pr(self, repo_ref: str, pr_number: int, diff: str = "", context: str = "") -> str:
+        """Review a PR. Fetches the diff from GitHub if not supplied."""
+        if not diff:
+            diff = self.fetch_pr_diff(repo_ref, pr_number)
+        content = f"PR #{pr_number} in {repo_ref}\n"
         if context:
             content += f"Context: {context}\n"
         content += f"\nDiff:\n```\n{diff}\n```"
-
         return self.run([{"role": "user", "content": content}])

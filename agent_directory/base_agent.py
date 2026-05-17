@@ -42,6 +42,22 @@ class BaseAgent:
             data = yaml.safe_load(f) or {}
         return data.get("agents", {}).get(name, {})
 
+    def fetch_pr_diff(self, repo_ref: str, pr_number: int) -> str:
+        """Fetch the unified diff for a PR from the GitHub API."""
+        if not self.github:
+            raise RuntimeError("No GITHUB_TOKEN configured")
+        resp = self.github.get(
+            f"https://api.github.com/repos/{repo_ref}/pulls/{pr_number}/files",
+            params={"per_page": 100},
+        )
+        resp.raise_for_status()
+        parts = []
+        for f in resp.json():
+            patch = f.get("patch", "")
+            if patch:
+                parts.append(f"--- a/{f['filename']}\n+++ b/{f['filename']}\n{patch}")
+        return "\n".join(parts)
+
     def run(self, messages: list) -> str:
         response = self.client.messages.create(
             model=self.model,
