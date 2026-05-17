@@ -181,7 +181,7 @@ class ScrumMaster(BaseAgent):
         response = self.client.messages.create(
             model=self.model,
             max_tokens=1024,
-            system=PR_COMMENT_SYSTEM,
+            system=self._prompt_with_memory(PR_COMMENT_SYSTEM),
             tools=tools,
             messages=messages,
         )
@@ -259,13 +259,22 @@ class ScrumMaster(BaseAgent):
                         to_po = inner.get("to_po", "")
                 except json.JSONDecodeError:
                     pass
-            return PRResponse(
+            result = PRResponse(
                 to_po=to_po,
                 to_agents=data.get("to_agents", []),
                 question=bool(data.get("question", False)),
             )
         except (json.JSONDecodeError, KeyError):
-            return PRResponse(to_po=f"**[ScrumMaster] → @{PO_HANDLE}:** {raw}")
+            result = PRResponse(to_po=f"**[ScrumMaster] → @{PO_HANDLE}:** {raw}")
+
+        self.reflect(
+            f"PR #{comment.pr_number} in {repo_ref}.\n"
+            f"Comment by @{comment.author}: {comment.body[:300]}\n\n"
+            f"My response — to_po: {result.to_po[:200]}\n"
+            f"Delegations: {[a['recipient'] for a in result.to_agents]}\n"
+            f"Asked question: {result.question}"
+        )
+        return result
 
     def check_pending_delegation(self, pr_number: int, pr_title: str, repo_ref: str,
                                   thread_history: list[dict], delegation: dict) -> dict:

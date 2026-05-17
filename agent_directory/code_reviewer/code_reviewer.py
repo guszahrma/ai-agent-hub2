@@ -69,7 +69,12 @@ class CodeReviewer(BaseAgent):
         diff = self.fetch_pr_diff(repo_ref, pr_number)
         anchors = self._anchor_lines(files)
 
-        raw = self.run([{"role": "user", "content": f"PR #{pr_number} in {repo_ref}\n\nDiff:\n```\n{diff}\n```"}])
+        raw = self.client.messages.create(
+            model=self.model,
+            max_tokens=self.max_tokens,
+            system=self._prompt_with_memory(self.system_prompt),
+            messages=[{"role": "user", "content": f"PR #{pr_number} in {repo_ref}\n\nDiff:\n```\n{diff}\n```"}],
+        ).content[0].text
 
         if raw.startswith("```"):
             raw = "\n".join(l for l in raw.splitlines() if not l.startswith("```")).strip()
@@ -106,4 +111,10 @@ class CodeReviewer(BaseAgent):
             if resp.ok:
                 posted += 1
 
-        return f"Posted {posted}/{len(findings)} findings as inline review comments. Verdict: {verdict}"
+        summary = f"Posted {posted}/{len(findings)} findings as inline review comments. Verdict: {verdict}"
+        self.reflect(
+            f"Reviewed PR #{pr_number} in {repo_ref}.\n"
+            f"Result: {summary}\n"
+            f"Severities: {[f.get('severity') for f in findings]}"
+        )
+        return summary
