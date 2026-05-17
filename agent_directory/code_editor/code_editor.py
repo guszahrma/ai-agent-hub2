@@ -93,7 +93,7 @@ class CodeEditor(BaseAgent):
             f"Applied fix to {data['file']} in {repo_ref} PR #{pr_number}.\n"
             f"Task: {task[:200]}\nCommit: {sha}"
         )
-        return f"Applied fix in [{sha}]({commit_url}). Please confirm this resolves the finding or flag any new issues."
+        return f"Applied fix in [{sha}]({commit_url}). Please delegate verification to CodeReviewer and confirm this resolves the finding."
 
     def _identify_target_file(self, task: str, diff_context: str) -> str | None:
         content = f"Task: {task}"

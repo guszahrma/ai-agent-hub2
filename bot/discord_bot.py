@@ -15,7 +15,7 @@ from agent_directory.architect.architect import Architect
 from agent_directory.code_editor.code_editor import CodeEditor
 from agent_directory.issue_manager.issue_manager import IssueManager
 from agent_directory.requirements_engineer.requirements_engineer import RequirementsEngineer
-from bot.pr_monitor import PRMonitor
+from bot.pr_monitor import PRMonitor, PRComment
 from bot.state_store import StateStore
 
 load_dotenv()
@@ -253,9 +253,41 @@ async def poll_pr_comments():
                             print(f"  → delegated to {agent_msg['recipient']}")
                             result = _dispatch_to_agent(agent_msg["recipient"], agent_msg["message"], repo_ref, repo_path=info.get("path"), pr_number=comment.pr_number)
                             if result:
-                                agent_body = f"**[{agent_msg['recipient']}]:** {result}"
-                                pr_monitor.reply(repo_ref, comment, agent_body)
-                                print(f"  → {agent_msg['recipient']} responded")
+                                agent_body = f"**[{agent_msg['recipient']}] → [ScrumMaster]:** {result}"
+                                completion_id = pr_monitor.reply(repo_ref, comment, agent_body)
+                                print(f"  → {agent_msg['recipient']} responded, routing to ScrumMaster")
+                                # Re-invoke ScrumMaster with the agent completion as the trigger
+                                completion = PRComment(
+                                    pr_number=comment.pr_number,
+                                    pr_title=comment.pr_title,
+                                    comment_id=completion_id,
+                                    comment_type=comment.comment_type,
+                                    author=agent_msg["recipient"],
+                                    body=agent_body,
+                                    created_at="",
+                                    url="",
+                                    diff_hunk=comment.diff_hunk,
+                                    in_reply_to_id=comment.in_reply_to_id or comment.comment_id,
+                                    path=comment.path,
+                                    original_line=comment.original_line,
+                                )
+                                followup_history = thread_history + [{"author": agent_msg["recipient"], "body": agent_body}]
+                                sm2 = scrum_master.handle_pr_comment(
+                                    completion, repo_ref=repo_ref,
+                                    repo_path=info.get("path"),
+                                    thread_history=followup_history,
+                                )
+                                if sm2.to_po:
+                                    pr_monitor.reply(repo_ref, comment, sm2.to_po)
+                                    print(f"  → ScrumMaster follow-up replied to PO")
+                                for follow_up in sm2.to_agents:
+                                    fu_body = f"**[ScrumMaster] → [{follow_up['recipient']}]:** {follow_up['message']}"
+                                    pr_monitor.reply(repo_ref, comment, fu_body)
+                                    print(f"  → ScrumMaster follow-up delegated to {follow_up['recipient']}")
+                                    fu_result = _dispatch_to_agent(follow_up["recipient"], follow_up["message"], repo_ref, repo_path=info.get("path"), pr_number=comment.pr_number)
+                                    if fu_result:
+                                        pr_monitor.reply(repo_ref, comment, f"**[{follow_up['recipient']}]:** {fu_result}")
+                                        print(f"  → {follow_up['recipient']} responded")
                     elif response.to_po:
                         reply_id = pr_monitor.reply(repo_ref, comment, response.to_po,
                                                     is_question=response.question)
