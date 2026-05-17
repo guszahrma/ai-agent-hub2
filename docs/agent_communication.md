@@ -20,16 +20,22 @@ graph TB
     subgraph ScrumMaster["ScrumMaster Agent"]
         RespondPO(["Respond to PO\nin PR thread"])
         DelegateGit(["Delegate git\ntask to GitAgent"])
+        DelegateCode(["Delegate code fix\nto CodeEditor"])
+        DelegateReview(["Delegate review\nto CodeReviewer"])
+        DelegateIssue(["Delegate issue\nto IssueManager"])
+        DelegateArch(["Delegate design\nto Architect / RE"])
         DelegateJeeves(["Delegate task\nto Jeeves"])
-        CreateIssue(["Create\nGitHub issue"])
     end
 
-    subgraph GitAgent["GitAgent"]
-        RunGit(["Execute local\ngit operations"])
+    subgraph InProcessAgents["In-process Agents (Hub Bot)"]
+        GitAgent(["GitAgent\ngit operations"])
+        CodeEditor(["CodeEditor\nwrite + commit + push"])
+        CodeReviewer(["CodeReviewer\npost inline findings"])
+        IssueManager(["IssueManager\ncreate / close issues"])
+        Architect(["Architect /\nRequirementsEngineer"])
     end
 
-    subgraph JeevesActions["Jeeves Actions (session-triggered)"]
-        CheckInbox(["Check\njeeves_inbox/"])
+    subgraph JeevesActions["Jeeves (session-triggered)"]
         CodeChange(["Implement code\nchanges"])
         CommitPush(["Commit & push\nto branch"])
     end
@@ -48,16 +54,20 @@ graph TB
     Route --> ScrumMaster
     RespondPO -- "posts reply" --> PR
     DelegateGit --> GitAgent
-    RunGit -- "returns result" --> ScrumMaster
-    DelegateJeeves -- "writes task file" --> Inbox
-    DelegateJeeves -- "posts Discord ping" --> PO
-    CreateIssue -- "opens issue" --> Issues
+    DelegateCode --> CodeEditor
+    DelegateReview --> CodeReviewer
+    DelegateIssue --> IssueManager
+    DelegateArch --> Architect
+    GitAgent -- "result" --> ScrumMaster
+    CodeEditor -- "[code_editor] → [ScrumMaster]" --> PR
+    CodeReviewer -- "inline findings" --> PR
+    IssueManager -- "opens/closes issue" --> Issues
+    DelegateJeeves -- "posts in PR thread" --> PR
 
     %% Jeeves picks up task
-    Inbox --> CheckInbox
-    CheckInbox --> CodeChange
+    PR -- "PO points Jeeves at task" --> JeevesActions
     CodeChange --> CommitPush
-    CommitPush -- "posts commit to PR" --> PR
+    CommitPush -- "[Jeeves] → [ScrumMaster]" --> PR
 ```
 
 ## Current state
@@ -66,53 +76,14 @@ graph TB
 sequenceDiagram
     actor PO as Product Owner
     participant GH as GitHub PR
-    participant Bot as Discord Bot
-    participant SM as ScrumMaster
-    participant GA as GitAgent
-    actor JE as Jeeves
-
-    PO->>GH: posts PR comment
-
-    loop every 60s
-        Bot->>GH: poll for new comments
-        GH-->>Bot: new comment found
-        note over Bot: ⚠️ all comments re-seeded as seen on restart
-    end
-
-    Bot->>SM: handle_pr_comment()
-
-    alt needs git info
-        SM->>GA: delegate_to_git_agent()
-        GA-->>SM: git result
-    end
-
-    SM->>GH: reply to_po in thread
-    GH-->>PO: notified
-
-    opt task for Jeeves
-        SM->>GH: posts [Jeeves] comment in thread
-        note over GH,JE: ⚠️ no delivery — Jeeves never sees this
-        note over JE: only acts if PO manually\npoints it out
-    end
-
-    opt out of scope
-        SM->>GH: reply "Tracked as #N"
-        SM->>GH: create new issue #N
-    end
-```
-
-## Proposed state
-
-```mermaid
-sequenceDiagram
-    actor PO as Product Owner
-    participant GH as GitHub PR
-    participant DC as Discord Channel
     participant Bot as Hub Bot
     participant SS as State Store (disk)
     participant SM as ScrumMaster
     participant GA as GitAgent
-    participant JI as jeeves_inbox/
+    participant CR as CodeReviewer
+    participant CE as CodeEditor
+    participant IM as IssueManager
+    participant AR as Architect / RE
     actor JE as Jeeves
 
     PO->>GH: posts PR comment
@@ -120,44 +91,53 @@ sequenceDiagram
     loop every 60s
         Bot->>GH: poll for new comments
         GH-->>Bot: new comment found
-        Bot->>SS: status = "received"
+        Bot->>SS: status = "delegated_to_scrum_master"
     end
 
     Bot->>SM: handle_pr_comment()
 
     alt needs git info
-        SM->>GA: delegate_to_git_agent()
+        SM->>GA: delegate_to_git_agent() [tool call]
         GA-->>SM: git result
-        SM-->>Bot: status = "delegated_git / resolved"
-        Bot->>SS: update state
+    end
+
+    alt code review requested
+        SM->>CR: delegate_to_code_reviewer() [tool call]
+        CR->>GH: posts inline findings
     end
 
     SM->>GH: reply to_po in thread
     GH-->>PO: notified
-    SM-->>Bot: status = "awaiting_po"
-    Bot->>SS: update state
+    Bot->>SS: status = "pending" or "resolved"
 
-    opt task for Jeeves
-        SM->>JI: write task file
-        SM->>DC: ping — Jeeves has a task in PR #N
-        SM-->>Bot: status = "delegated_jeeves"
-        Bot->>SS: update state
-        DC-->>PO: sees ping, opens Claude Code
-        PO->>JE: opens session
-        JE->>JI: check inbox at session start
-        JI-->>JE: pending task
-        JE->>GH: commits fix, replies in thread
-        JE->>SM: reports completion
-        SM-->>Bot: status = "resolved"
-        Bot->>SS: update state
-        GH-->>PO: notified
+    opt code fix needed
+        SM->>GH: [ScrumMaster] → [CodeEditor]: task
+        Bot->>CE: dispatch execute()
+        CE->>CE: fetch PR diff + read file
+        CE->>GH: commits fix, pushes
+        CE->>GH: [code_editor] → [ScrumMaster]: Applied fix in [sha]
+        Bot->>SM: handle_pr_comment() [inline, no poll round-trip]
+        SM->>CR: delegate_to_code_reviewer() [verify fix]
+        CR->>GH: posts updated findings
+        SM->>GH: reply to_po
     end
 
-    opt out of scope
-        SM->>GH: reply "Tracked as #N"
-        SM->>GH: create new issue #N
-        SM-->>Bot: status = "issue_created / resolved"
-        Bot->>SS: update state
+    opt issue management
+        SM->>GH: [ScrumMaster] → [IssueManager]: task
+        Bot->>IM: dispatch execute()
+        IM->>GH: creates / closes issue
+        IM->>GH: [issue_manager] → [ScrumMaster]: done
+        Bot->>SM: handle_pr_comment() [inline]
+        SM->>GH: reply to_po "Tracked as #N"
+    end
+
+    opt Jeeves needed
+        SM->>GH: [ScrumMaster] → [Jeeves]: task
+        note over GH,JE: Jeeves acts when PO opens a session
+        JE->>GH: commits fix
+        JE->>GH: [Jeeves] → [ScrumMaster]: done + sha
+        Bot->>SM: handle_pr_comment() [next poll]
+        SM->>GH: reply to_po
     end
 ```
 
@@ -167,12 +147,17 @@ sequenceDiagram
 |---|---|---|---|
 | Product Owner | ScrumMaster | PR comment → bot poll | ✓ (with state persistence) |
 | Product Owner | ScrumMaster | Discord message → bot | ✓ |
-| ScrumMaster | Product Owner | PR comment reply (to_po) | ✓ |
-| ScrumMaster | GitAgent | In-process tool use | ✓ |
-| ScrumMaster | Jeeves | `jeeves_inbox/` file + Discord ping | ✓ |
-| ScrumMaster | Hub Bot | Status report (after each action) | ✓ |
+| ScrumMaster | Product Owner | PR comment reply (`to_po`) | ✓ |
+| ScrumMaster | GitAgent | In-process tool call | ✓ |
+| ScrumMaster | CodeReviewer | In-process tool call (`delegate_to_code_reviewer`) | ✓ |
+| ScrumMaster | CodeEditor | In-process dispatch via `to_agents` | ✓ |
+| ScrumMaster | IssueManager | In-process dispatch via `to_agents` | ✓ |
+| ScrumMaster | Architect | In-process dispatch via `to_agents` | ✓ |
+| ScrumMaster | RequirementsEngineer | In-process dispatch via `to_agents` | ✓ |
+| CodeEditor | ScrumMaster | `**[code_editor] → [ScrumMaster]:**` comment → bot re-invokes ScrumMaster inline | ✓ |
+| Any agent | ScrumMaster | `**[agent] → [ScrumMaster]:**` comment → bot re-invokes ScrumMaster inline | ✓ |
 | GitAgent | ScrumMaster | Return value from tool call | ✓ |
-| Jeeves | ScrumMaster | Report completion via PR comment | ✓ |
+| Jeeves | ScrumMaster | `**[Jeeves] → [ScrumMaster]:**` PR comment | ✓ (picked up on next poll) |
 | Hub Bot | State Store | Sole writer — reads and writes on every status change | ✓ (atomic writes) |
 
 ## State store ownership

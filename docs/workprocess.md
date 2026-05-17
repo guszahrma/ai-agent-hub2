@@ -68,9 +68,9 @@ The method depends on what is being changed:
 | Change type | Method |
 |---|---|
 | Documentation / text | Post a GitHub suggestion block in the reply — PO commits it via the "Commit suggestion" button |
-| Code | Commit and push the fix, then include the full diff in the reply comment so the PO can verify without navigating away |
+| Code | ScrumMaster delegates to CodeEditor, which writes the fix, commits with its own identity, pushes, and replies `**[code_editor] → [ScrumMaster]:** Applied fix in [sha](url).` ScrumMaster then delegates verification to CodeReviewer. |
 
-**Why:** GitHub marks a comment "Outdated" as soon as the referenced line changes, hiding it from the Files Changed view. For text changes this is avoided by letting the PO commit the suggestion. For code changes the fix must be committed before it can be tested, so the diff is included in the comment to preserve visibility.
+**Why:** GitHub marks a comment "Outdated" as soon as the referenced line changes, hiding it from the Files Changed view. For text changes this is avoided by letting the PO commit the suggestion. For code changes CodeEditor commits autonomously so the fix is immediately testable, and the SHA link in the thread preserves traceability.
 
 ---
 
