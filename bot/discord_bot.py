@@ -11,6 +11,10 @@ from dotenv import load_dotenv
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from agent_directory.scrum_master import ScrumMaster
+from agent_directory.architect.architect import Architect
+from agent_directory.code_editor.code_editor import CodeEditor
+from agent_directory.issue_manager.issue_manager import IssueManager
+from agent_directory.requirements_engineer.requirements_engineer import RequirementsEngineer
 from bot.pr_monitor import PRMonitor
 from bot.state_store import StateStore
 
@@ -74,6 +78,23 @@ scrum_master = ScrumMaster()
 repos = load_repos()
 state_store = StateStore()
 pr_monitor = PRMonitor(GITHUB_TOKEN, state_store) if GITHUB_TOKEN else None
+
+_AGENT_REGISTRY: dict[str, object] = {
+    "architect": Architect(),
+    "code_editor": CodeEditor(),
+    "issue_manager": IssueManager(),
+    "requirements_engineer": RequirementsEngineer(),
+}
+
+
+def _dispatch_to_agent(name: str, task: str, repo_ref: str) -> str | None:
+    agent = _AGENT_REGISTRY.get(name.lower().replace("-", "_"))
+    if agent is None:
+        return None
+    try:
+        return agent.execute(task, repo_ref=repo_ref)
+    except Exception as e:
+        return f"Agent error: {e}"
 
 
 def handle_merged_pr(pr: dict, repo_ref: str, repo_path: str | None):
@@ -230,6 +251,11 @@ async def poll_pr_comments():
                                 task=agent_msg["message"][:200],
                             )
                             print(f"  → delegated to {agent_msg['recipient']}")
+                            result = _dispatch_to_agent(agent_msg["recipient"], agent_msg["message"], repo_ref)
+                            if result:
+                                agent_body = f"**[{agent_msg['recipient']}]:** {result}"
+                                pr_monitor.reply(repo_ref, comment, agent_body)
+                                print(f"  → {agent_msg['recipient']} responded")
                     elif response.to_po:
                         reply_id = pr_monitor.reply(repo_ref, comment, response.to_po,
                                                     is_question=response.question)

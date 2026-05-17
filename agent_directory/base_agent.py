@@ -129,6 +129,10 @@ Output only the JSON object.""",
         except Exception as e:
             print(f"  [{self.name}] Reflection failed: {e}")
 
+    def execute(self, task: str, repo_ref: str = None) -> str | None:
+        """Standard dispatch entry point. Override in each agent subclass."""
+        return None
+
     def run(self, messages: list) -> str:
         response = self.client.messages.create(
             model=self.model,

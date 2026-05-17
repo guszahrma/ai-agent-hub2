@@ -61,6 +61,9 @@ class IssueManager(BaseAgent):
         )
         return resp.ok
 
+    def execute(self, task: str, repo_ref: str = None) -> str | None:
+        return self.execute_task(task, repo_ref or "")
+
     def execute_task(self, task: str, repo_ref: str) -> str:
         """Interpret a natural-language issue management task and execute it."""
         if not self.github:

@@ -33,6 +33,9 @@ class CodeEditor(BaseAgent):
             model=model,
         )
 
+    def execute(self, task: str, repo_ref: str = None) -> str | None:
+        return self.plan_change(task)
+
     def plan_change(self, task: str, file_content: str = "") -> str:
         """Given a task description and optional current file content, return a change plan."""
         content = f"Task: {task}"

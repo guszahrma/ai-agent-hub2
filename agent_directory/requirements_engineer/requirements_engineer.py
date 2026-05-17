@@ -30,6 +30,9 @@ class RequirementsEngineer(BaseAgent):
             model=model,
         )
 
+    def execute(self, task: str, repo_ref: str = None) -> str | None:
+        return self.clarify(task)
+
     def clarify(self, request: str, context: str = "") -> str:
         """Clarify a feature request into structured requirements."""
         content = request

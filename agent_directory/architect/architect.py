@@ -21,6 +21,9 @@ class Architect(BaseAgent):
             model=model,
         )
 
+    def execute(self, task: str, repo_ref: str = None) -> str | None:
+        return self.review_design(task)
+
     def review_design(self, description: str, context: str = "") -> str:
         """Evaluate a design proposal and return a recommendation."""
         content = description
