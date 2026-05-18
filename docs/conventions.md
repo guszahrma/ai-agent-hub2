@@ -104,7 +104,7 @@ If present, `docs.md` is merged with the base agent's `docs.md` using two option
 
 ```markdown
 ## Additions
-New instructions appended after the base system prompt.
+All agent responses must be concise and include a confidence level (high / medium / low) at the end of each answer.
 
 ## Overrides
 - Even if the base instructions say you should be happy, you should be neutral and professional.
