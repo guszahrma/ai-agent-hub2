@@ -14,9 +14,9 @@ Given a PR thread and a pending delegation, determine if the work has been compl
 Your response MUST be a raw JSON object:
 {"status": "pending|in_progress|resolved", "notes": "one sentence summary"}
 
-- "resolved": Jeeves has posted a clear completion report in the thread (look for **[Jeeves]** comments confirming done with a commit SHA)
-- "in_progress": Jeeves has acknowledged the task but not completed it
-- "pending": no update from Jeeves yet
+- "resolved": the assigned agent has posted a clear completion report in the thread (look for a comment from the agent confirming done, typically with a commit SHA)
+- "in_progress": the assigned agent has acknowledged the task but not completed it
+- "pending": no update from the assigned agent yet
 
 Be conservative — only set "resolved" if there is clear evidence of completion.
 """

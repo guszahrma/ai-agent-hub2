@@ -24,6 +24,8 @@ When responding to a PR comment, the ScrumMaster must assess the right outcome:
 - **New issue** — when the comment is valid but out of scope or large; create the issue, reply with `Tracked as #N`
 - **Decline** — when invalid or a deliberate tradeoff; explain why in the thread
 
+When creating a GitHub issue for a finding that is intentionally deferred (tech debt, out-of-scope concern, deliberate tradeoff), apply the `deferred` label. This signals to CodeReviewer and other agents not to re-report the same finding on future reviews.
+
 ## Environment variables required
 | Variable | Description |
 |---|---|
