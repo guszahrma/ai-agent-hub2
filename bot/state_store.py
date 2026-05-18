@@ -75,6 +75,10 @@ class StateStore:
     # ── Public read API ──────────────────────────────────────────────────────
 
     def is_seen(self, repo_ref: str, pr_number: int, comment_id: int) -> bool:
+        # Invariant: a comment absent from the store is treated identically to one
+        # with status 'new' — both return False (not seen). This is intentional:
+        # unseen comments must always be processed, regardless of whether they have
+        # been recorded yet. Do not change either early-return to True.
         key = (repo_ref, pr_number)
         if key not in self._states:
             return False
