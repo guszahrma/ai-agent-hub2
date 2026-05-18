@@ -1,0 +1,4 @@
+ollama_model: qwen2.5-coder:7b
+max_tokens: 4096
+git_name: JuniorTestEngineer
+git_email: junior-test-engineer@ai-agent-hub2
