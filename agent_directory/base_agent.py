@@ -15,7 +15,8 @@ class BaseAgent:
         self.name = name
         self.system_prompt = system_prompt
         self.client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
-        self.github = self._make_github_session()
+        self._github: requests.Session | None = None
+        self._github_token: str | None = None
         agent_config = self._load_agent_config(name)
         self.model = model or agent_config.get("model", "claude-sonnet-4-6")
         self.max_tokens = agent_config.get("max_tokens", 4096)
@@ -24,20 +25,30 @@ class BaseAgent:
         self.memory_path = Path(__file__).parent / name / "memory"
         self.memory_path.mkdir(exist_ok=True)
 
-    def _make_github_session(self) -> requests.Session | None:
+    @property
+    def github(self) -> requests.Session | None:
+        if self._github is None:
+            token = os.getenv("GITHUB_TOKEN")
+            if not token:
+                return None
+            self._github_token = token
+            self._github = requests.Session()
+            self._github.headers.update({
+                "Accept": "application/vnd.github+json",
+                "X-GitHub-Api-Version": "2022-11-28",
+            })
+        return self._github
+
+    def _github_request(self, method: str, url: str, **kwargs) -> requests.Response:
         token = os.getenv("GITHUB_TOKEN")
         if not token:
-            return None
-        session = requests.Session()
-        session.headers.update({
-            "Authorization": f"Bearer {token}",
-            "Accept": "application/vnd.github+json",
-            "X-GitHub-Api-Version": "2022-11-28",
-        })
-        return session
+            raise RuntimeError("No GITHUB_TOKEN configured")
+        session = self.github
+        headers = kwargs.pop("headers", {})
+        headers["Authorization"] = f"Bearer {token}"
+        return session.request(method, url, headers=headers, **kwargs)
 
     def _load_agent_config(self, name: str) -> dict:
-        # Look for per-agent config.yaml first, fall back to global agents.yaml
         per_agent = Path(__file__).parent / name / "config.yaml"
         if per_agent.exists():
             with open(per_agent) as f:
@@ -48,9 +59,8 @@ class BaseAgent:
 
     def fetch_pr_diff(self, repo_ref: str, pr_number: int) -> str:
         """Fetch the unified diff for a PR from the GitHub API."""
-        if not self.github:
-            raise RuntimeError("No GITHUB_TOKEN configured")
-        resp = self.github.get(
+        resp = self._github_request(
+            "GET",
             f"https://api.github.com/repos/{repo_ref}/pulls/{pr_number}/files",
             params={"per_page": 100},
         )
