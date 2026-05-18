@@ -20,11 +20,18 @@ Each finding:
 
 Rules:
 - Flag security issues (injection, auth gaps, exposed secrets, OWASP top 10)
-- Check that changed paths have test coverage
 - Note convention violations
 - Distinguish blockers from suggestions clearly
 - Only report findings for files present in the diff
 - Output ONLY the JSON object
+
+Severity guide:
+- blocker: correctness bugs, security issues, breaking API contracts
+- suggestion: style, robustness improvements, naming
+
+Deferred issues:
+- If a list of known deferred issues is provided, do NOT report findings that are already tracked there
+- Missing test coverage is never a blocker; only flag it as a suggestion if no deferred issue covers it
 """
 
 
@@ -60,6 +67,16 @@ class CodeReviewer(BaseAgent):
             result[f["filename"]] = int(m.group(1)) if m else 1
         return result
 
+    def _fetch_deferred_issues(self, repo_ref: str) -> list[dict]:
+        """Return open issues labelled 'deferred' from the repo."""
+        if not self.github:
+            return []
+        resp = self.github.get(
+            f"https://api.github.com/repos/{repo_ref}/issues",
+            params={"labels": "deferred", "state": "open", "per_page": 100},
+        )
+        return resp.json() if resp.ok else []
+
     def review_and_post(self, repo_ref: str, pr_number: int) -> str:
         """Run a code review and post each finding as an inline review comment."""
         if not self.github:
@@ -69,11 +86,17 @@ class CodeReviewer(BaseAgent):
         diff = self.fetch_pr_diff(repo_ref, pr_number)
         anchors = self._anchor_lines(files)
 
+        deferred = self._fetch_deferred_issues(repo_ref)
+        deferred_section = ""
+        if deferred:
+            items = "\n".join(f"- #{i['number']}: {i['title']}" for i in deferred)
+            deferred_section = f"\n\nKnown deferred issues — skip findings already tracked here:\n{items}"
+
         raw = self.client.messages.create(
             model=self.model,
             max_tokens=self.max_tokens,
             system=self._prompt_with_memory(self.system_prompt),
-            messages=[{"role": "user", "content": f"PR #{pr_number} in {repo_ref}\n\nDiff:\n```\n{diff}\n```"}],
+            messages=[{"role": "user", "content": f"PR #{pr_number} in {repo_ref}\n\nDiff:\n```\n{diff}\n```{deferred_section}"}],
         ).content[0].text
 
         if raw.startswith("```"):
