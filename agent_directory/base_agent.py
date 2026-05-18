@@ -59,14 +59,17 @@ class BaseAgent:
 
     def fetch_pr_diff(self, repo_ref: str, pr_number: int) -> str:
         """Fetch the unified diff for a PR from the GitHub API."""
-        resp = self._github_request(
-            "GET",
-            f"https://api.github.com/repos/{repo_ref}/pulls/{pr_number}/files",
-            params={"per_page": 100},
-        )
-        resp.raise_for_status()
+        url = f"https://api.github.com/repos/{repo_ref}/pulls/{pr_number}/files"
+        params = {"per_page": 100}
+        files = []
+        while url:
+            resp = self._github_request("GET", url, params=params)
+            resp.raise_for_status()
+            files.extend(resp.json())
+            url = resp.links.get("next", {}).get("url")
+            params = None
         parts = []
-        for f in resp.json():
+        for f in files:
             patch = f.get("patch", "")
             if patch:
                 parts.append(f"--- a/{f['filename']}\n+++ b/{f['filename']}\n{patch}")
