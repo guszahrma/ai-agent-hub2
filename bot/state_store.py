@@ -1,4 +1,5 @@
 import json
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -23,7 +24,7 @@ class StateStore:
         return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     def _load_all(self):
-        for path in sorted(STATE_DIR.glob("comment_state_PR*.json")):
+        for path in sorted(STATE_DIR.glob("comment_state_*_PR*.json")):
             try:
                 with open(path) as f:
                     state = json.load(f)
@@ -39,14 +40,15 @@ class StateStore:
             except Exception as e:
                 print(f"StateStore: failed to load {path}: {e}")
 
-    def _path(self, pr_number: int) -> Path:
-        return STATE_DIR / f"comment_state_PR{pr_number}.json"
+    def _path(self, repo_ref: str, pr_number: int) -> Path:
+        repo_slug = re.sub(r'[^a-zA-Z0-9]', '_', repo_ref)
+        return STATE_DIR / f"comment_state_{repo_slug}_PR{pr_number}.json"
 
     def _save(self, repo_ref: str, pr_number: int):
         key = (repo_ref, pr_number)
         state = self._states[key]
         state["last_updated"] = self._now()
-        path = self._path(pr_number)
+        path = self._path(repo_ref, pr_number)
         tmp = path.with_suffix(".tmp")
         with open(tmp, "w") as f:
             json.dump(state, f, indent=2)
